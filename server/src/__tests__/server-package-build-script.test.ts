@@ -54,6 +54,9 @@ describe("server package build script", () => {
     expect(packageJson.scripts?.build).toContain(
       "node ../scripts/prepare-bundled-package.mjs ../packages/paperclip-runner dist/vendor/paperclip-runner",
     );
+    expect(packageJson.scripts?.build).toContain(
+      "cp -R dist/vendor/paperclip-runner/dist/. dist/vendor/paperclip-runner/",
+    );
   });
 
   it("loads runner source when the source server starts before workspace builds", () => {
