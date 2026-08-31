@@ -1869,7 +1869,7 @@ export function secretService(db: Db | DbTransaction) {
         const rawLegacyToken = authHeaders
           .map((name) => entries.find(([key]) => key.toLowerCase() === name)?.[1])
           .find((value) => value !== undefined);
-        if (normalized.authToken === undefined) {
+        if (normalized.authToken === undefined && normalized.token === undefined) {
           if (typeof rawLegacyToken === "string") {
             const token = rawLegacyToken.replace(/^Bearer\s+/i, "").trim();
             if (token) normalized.authToken = token;

@@ -1171,6 +1171,37 @@ describeEmbeddedPostgres("secretService", () => {
     });
   });
 
+  it("does not replace the native OpenClaw token with a legacy auth header", async () => {
+    const companyId = await seedCompany();
+    const svc = secretService(db);
+
+    const normalized = await svc.normalizeAdapterConfigForPersistence(
+      companyId,
+      {
+        token: "native-token",
+        headers: { Authorization: "Bearer legacy-token", "x-trace-id": "keep" },
+      },
+      { adapterType: "openclaw_gateway" },
+    );
+
+    expect(normalized).toEqual({
+      token: expect.objectContaining({ type: "secret_ref" }),
+      headers: { "x-trace-id": "keep" },
+    });
+    expect(normalized).not.toHaveProperty("authToken");
+
+    const resolved = await svc.resolveAdapterConfigForRuntime(
+      companyId,
+      normalized,
+      undefined,
+      { adapterType: "openclaw_gateway" },
+    );
+    expect(resolved.config).toEqual({
+      token: "native-token",
+      headers: { "x-trace-id": "keep" },
+    });
+  });
+
   it("returns conflict when concurrent user secret value creation races the unique index", async () => {
     const companyId = await seedCompany();
     await seedCompanyMember(companyId, "user-1", "owner");
