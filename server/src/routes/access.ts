@@ -905,7 +905,9 @@ export function normalizeAgentDefaultsForJoin(input: {
   const headers = normalizeHeaderMap(defaults.headers) ?? {};
   const nativeGatewayToken =
     nonEmptyTrimmedString(defaults.authToken) ??
-    (isSecretRefValue(defaults.authToken) ? defaults.authToken : null);
+    (isSecretRefValue(defaults.authToken) ? defaults.authToken : null) ??
+    nonEmptyTrimmedString(defaults.token) ??
+    (isSecretRefValue(defaults.token) ? defaults.token : null);
   const legacyGatewayToken =
     headerMapGetIgnoreCase(headers, "x-openclaw-token") ??
     headerMapGetIgnoreCase(headers, "x-openclaw-auth") ??

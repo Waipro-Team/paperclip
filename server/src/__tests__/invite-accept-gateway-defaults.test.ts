@@ -103,6 +103,27 @@ describe("buildJoinDefaultsPayloadForAccept (openclaw_gateway)", () => {
 });
 
 describe("normalizeAgentDefaultsForJoin (openclaw_gateway)", () => {
+  it("prefers a native token over legacy auth headers", () => {
+    const normalized = normalizeAgentDefaultsForJoin({
+      adapterType: "openclaw_gateway",
+      defaultsPayload: {
+        url: "ws://127.0.0.1:18789",
+        token: "native-token-1234567890",
+        headers: {
+          authorization: "Bearer legacy-token-1234567890",
+        },
+      },
+      deploymentMode: "authenticated",
+      deploymentExposure: "private",
+      bindHost: "127.0.0.1",
+      allowedHostnames: [],
+    });
+
+    expect(normalized.fatalErrors).toEqual([]);
+    expect(normalized.normalized?.authToken).toBe("native-token-1234567890");
+    expect(normalized.normalized?.headers).toBeUndefined();
+  });
+
   it("generates persistent device key when device auth is enabled", () => {
     const normalized = normalizeAgentDefaultsForJoin({
       adapterType: "openclaw_gateway",
