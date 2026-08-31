@@ -930,6 +930,7 @@ export function secretService(db: Db | DbTransaction) {
     strictMode?: boolean;
     adapterType?: string | null;
     actor?: { userId?: string | null; agentId?: string | null };
+    priorAdapterConfig?: Record<string, unknown> | null;
   };
 
   async function getById(id: string, source: Pick<Db | DbTransaction, "select"> = db) {
@@ -1880,6 +1881,25 @@ export function secretService(db: Db | DbTransaction) {
         const safeHeaders = Object.fromEntries(entries.filter(([key]) => !authHeaders.includes(key.toLowerCase())));
         if (Object.keys(safeHeaders).length > 0) normalized.headers = safeHeaders;
         else delete normalized.headers;
+      }
+      const prior = opts.priorAdapterConfig;
+      const hasAuthToken = Object.prototype.hasOwnProperty.call(adapterConfig, "authToken");
+      const hasToken = Object.prototype.hasOwnProperty.call(adapterConfig, "token");
+      if (prior && !hasAuthToken && !hasToken) {
+        if (prior.authToken !== undefined) normalized.authToken = prior.authToken;
+        else if (prior.token !== undefined) normalized.token = prior.token;
+        else if (prior.headers && typeof prior.headers === "object" && !Array.isArray(prior.headers)) {
+          const priorEntries = Object.entries(prior.headers);
+          const priorAuthHeaders = ["x-openclaw-token", "x-openclaw-auth", "authorization"];
+          const priorLegacyToken = priorAuthHeaders
+            .map((name) => priorEntries.find(([key]) => key.toLowerCase() === name)?.[1])
+            .find((value) => value !== undefined);
+          if (priorLegacyToken !== undefined) {
+            normalized.authToken = typeof priorLegacyToken === "string"
+              ? priorLegacyToken.replace(/^Bearer\s+/i, "").trim()
+              : priorLegacyToken;
+          }
+        }
       }
     }
     if (Object.prototype.hasOwnProperty.call(adapterConfig, "env")) {
