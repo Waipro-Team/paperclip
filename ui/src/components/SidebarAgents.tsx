@@ -374,6 +374,7 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
     const filtered = (agents ?? []).filter(
       (a: Agent) =>
         a.status !== "terminated" &&
+        a.status !== "paused" &&
         (
           !membershipsQuery.isSuccess ||
           resourceMembershipState(membershipsQuery.data, "agent", a.id) !== "left"
@@ -641,7 +642,7 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
       menu={{
         ariaLabel: "Agents section actions",
         actions: [
-          { type: "item", label: "Browse agents", icon: Users, href: "/agents/all" },
+          { type: "item", label: "Sfoglia tutti gli agenti", icon: Users, href: "/agents/all" },
           { type: "separator" },
         ],
         radioLabel: "Agent sort",
@@ -657,22 +658,22 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
         // (plain Link) that must not adopt nav-row active-route highlighting.
         const seeAllLink = (
           <Link
-            to="/agents/all"
+            to="/agents/active"
             state={SIDEBAR_SCROLL_RESET_STATE}
-            aria-label={rail ? "See all agents" : undefined}
+            aria-label={rail ? "Vedi agenti operativi" : undefined}
             onClick={() => {
               if (isMobile) setSidebarOpen(false);
             }}
             className="flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
           >
             <Users className="shrink-0 h-4 w-4" />
-            <span className={rail ? SIDEBAR_RAIL_HIDDEN_LABEL : undefined}>See all agents</span>
+            <span className={rail ? SIDEBAR_RAIL_HIDDEN_LABEL : undefined}>Vedi agenti operativi</span>
           </Link>
         );
         return rail ? (
           <Tooltip>
             <TooltipTrigger asChild>{seeAllLink}</TooltipTrigger>
-            <TooltipContent side="right">See all agents</TooltipContent>
+            <TooltipContent side="right">Vedi agenti operativi</TooltipContent>
           </Tooltip>
         ) : (
           seeAllLink

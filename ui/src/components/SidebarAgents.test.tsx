@@ -207,15 +207,15 @@ async function chooseSortMode(label: string) {
 
 function agentLinkLabels(container: HTMLElement) {
   return Array.from(container.querySelectorAll('a[href^="/agents/"]'))
-    .filter((anchor) => anchor.getAttribute("href") !== "/agents/all")
+    .filter((anchor) => anchor.getAttribute("href") !== "/agents/active")
     .map((anchor) => anchor.textContent?.trim())
     .filter(Boolean);
 }
 
 function seeAllAgentsLink(container: HTMLElement) {
   return (
-    Array.from(container.querySelectorAll('a[href="/agents/all"]')).find((anchor) =>
-      anchor.textContent?.includes("See all agents"),
+    Array.from(container.querySelectorAll('a[href="/agents/active"]')).find((anchor) =>
+      anchor.textContent?.includes("Vedi agenti operativi"),
     ) ?? null
   );
 }
@@ -398,7 +398,7 @@ describe("SidebarAgents", () => {
     expect(nameSpan?.className).not.toContain("sr-only");
     expect(nameSpan?.className).toContain("w-0");
     expect(nameSpan?.className).toContain("overflow-hidden");
-    const agentLink = container.querySelector('a[href^="/agents/"]:not([href="/agents/all"])');
+    const agentLink = container.querySelector('a[href^="/agents/"]:not([href="/agents/active"])');
     expect(agentLink?.parentElement?.getAttribute("data-slot")).toBe("tooltip-trigger");
     expect(container.querySelector('button[aria-label="Open actions for Alpha"]')).toBeNull();
 
@@ -525,7 +525,7 @@ describe("SidebarAgents", () => {
       .find((element) => element.textContent?.includes("New agent"));
     expect(newAgentItem).toBeFalsy();
     const browseLink = Array.from(document.body.querySelectorAll("a"))
-      .find((element) => element.textContent?.includes("Browse agents"));
+      .find((element) => element.textContent?.includes("Sfoglia tutti gli agenti"));
     expect(browseLink?.getAttribute("href")).toBe("/agents/all");
   });
 
@@ -649,25 +649,15 @@ describe("SidebarAgents", () => {
     expect(agentLinkLabels(container)).toEqual([]);
   });
 
-  it("shows resume for paused sidebar agents", async () => {
+  it("keeps paused agents in the archive instead of the operational sidebar", async () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({ status: "paused", pauseReason: "manual", pausedAt: new Date("2026-01-02T00:00:00Z") }),
     ]);
 
     await renderSidebarAgents();
-    await openAgentMenu();
 
-    const resumeItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
-      .find((element) => element.textContent?.includes("Resume agent"));
-    expect(resumeItem).toBeTruthy();
-
-    await act(async () => {
-      resumeItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
-    expect(mockAgentsApi.resume).toHaveBeenCalledWith("agent-1", "company-1");
-    expect(mockPushToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Agent resumed" }));
+    expect(agentLinkLabels(container)).toEqual([]);
+    expect(mockAgentsApi.resume).not.toHaveBeenCalled();
   });
 
   it("only shows updating state for the agent currently being changed", async () => {
@@ -715,7 +705,7 @@ describe("SidebarAgents", () => {
     expect(labels[0]).toContain("Bravo");
     // PAP-76: the full-list entry point stays visible even when only active
     // agents are shown.
-    expect(seeAllAgentsLink(container)?.getAttribute("href")).toBe("/agents/all");
+    expect(seeAllAgentsLink(container)?.getAttribute("href")).toBe("/agents/active");
   });
 
   it("keeps formerly live agents visible for the streamlined linger window", async () => {
@@ -840,7 +830,7 @@ describe("SidebarAgents", () => {
     await renderSidebarAgents();
 
     expect(agentLinkLabels(container)).toHaveLength(3);
-    expect(seeAllAgentsLink(container)?.getAttribute("href")).toBe("/agents/all");
+    expect(seeAllAgentsLink(container)?.getAttribute("href")).toBe("/agents/active");
   });
 
   it("classic mode (flag OFF) shows all agents and no See all link even when one is running", async () => {
@@ -902,7 +892,7 @@ describe("SidebarAgents", () => {
     expect(seeAllAgentsLink(container)).toBeNull();
   });
 
-  it("does not offer sidebar resume for budget-paused agents", async () => {
+  it("also hides budget-paused agents from the operational sidebar", async () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({
         status: "paused",
@@ -912,19 +902,8 @@ describe("SidebarAgents", () => {
     ]);
 
     await renderSidebarAgents();
-    await openAgentMenu();
 
-    const budgetPausedItem = Array.from(
-      document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'),
-    )
-      .find((element) => element.textContent?.includes("Budget paused"));
-    expect(budgetPausedItem).toBeTruthy();
-
-    await act(async () => {
-      budgetPausedItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
+    expect(agentLinkLabels(container)).toEqual([]);
     expect(mockAgentsApi.resume).not.toHaveBeenCalled();
   });
 });

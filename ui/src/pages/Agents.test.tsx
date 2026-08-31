@@ -883,7 +883,7 @@ describe("Agents", () => {
     await flushReact();
 
     expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("company-1");
-    expect(container.textContent).toContain("Built-in");
+    expect(container.textContent).toContain("Integrati");
     expect(container.textContent).toContain("Briefs Agent");
     expect(container.textContent).not.toContain("Regular Agent");
     expect(container.querySelector('[title="Ships with Paperclip"]')).toBeNull();

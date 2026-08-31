@@ -50,11 +50,11 @@ export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin"]
 type FilterTab = (typeof AGENT_FILTER_TABS)[number];
 
 const AGENT_FILTER_TAB_ITEMS: { value: FilterTab; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "error", label: "Error" },
-  { value: "builtin", label: "Built-in" },
+  { value: "all", label: "Tutti" },
+  { value: "active", label: "Operativi" },
+  { value: "paused", label: "Archivio" },
+  { value: "error", label: "Errore" },
+  { value: "builtin", label: "Integrati" },
 ];
 
 function isFilterTab(value: string): value is FilterTab {
