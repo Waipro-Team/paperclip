@@ -1865,8 +1865,10 @@ export function secretService(db: Db | DbTransaction) {
       const headers = adapterConfig.headers;
       if (headers && typeof headers === "object" && !Array.isArray(headers)) {
         const entries = Object.entries(headers);
-        const authHeaders = ["authorization", "x-openclaw-token", "x-openclaw-auth"];
-        const rawLegacyToken = entries.find(([key]) => authHeaders.includes(key.toLowerCase()))?.[1];
+        const authHeaders = ["x-openclaw-token", "x-openclaw-auth", "authorization"];
+        const rawLegacyToken = authHeaders
+          .map((name) => entries.find(([key]) => key.toLowerCase() === name)?.[1])
+          .find((value) => value !== undefined);
         if (normalized.authToken === undefined) {
           if (typeof rawLegacyToken === "string") {
             const token = rawLegacyToken.replace(/^Bearer\s+/i, "").trim();

@@ -48,8 +48,10 @@ export function buildOpenClawGatewayConfig(v: CreateConfigValues): Record<string
   const headers = parseJsonObject(v.headersJson ?? "");
   if (headers) {
     const entries = Object.entries(headers);
-    const authHeaders = ["authorization", "x-openclaw-token", "x-openclaw-auth"];
-    const legacyToken = entries.find(([key]) => authHeaders.includes(key.toLowerCase()))?.[1];
+    const authHeaders = ["x-openclaw-token", "x-openclaw-auth", "authorization"];
+    const legacyToken = authHeaders
+      .map((name) => entries.find(([key]) => key.toLowerCase() === name)?.[1])
+      .find((value) => value !== undefined);
     if (!ac.authToken && typeof legacyToken === "string") {
       ac.authToken = legacyToken.replace(/^Bearer\s+/i, "").trim();
     }

@@ -1154,7 +1154,14 @@ describeEmbeddedPostgres("secretService", () => {
 
     const normalized = await svc.normalizeAdapterConfigForPersistence(
       companyId,
-      { headers: { "X-OpenClaw-Token": tokenRef, "x-trace-id": "keep" } },
+      {
+        headers: {
+          Authorization: "Bearer stale-token",
+          "X-OpenClaw-Auth": "lower-priority-token",
+          "X-OpenClaw-Token": tokenRef,
+          "x-trace-id": "keep",
+        },
+      },
       { adapterType: "openclaw_gateway" },
     );
 
