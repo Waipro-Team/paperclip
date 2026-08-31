@@ -15,6 +15,7 @@ import {
 } from "@paperclipai/db";
 import {
   buildJoinDefaultsPayloadForAccept,
+  mergeJoinDefaultsPayloadForReplay,
   normalizeAgentDefaultsForJoin,
   prepareAgentDefaultsPayloadForJoinPersistence,
 } from "../routes/access.js";
@@ -252,7 +253,7 @@ describe("normalizeAgentDefaultsForJoin (hermes_gateway)", () => {
   });
 });
 
-describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_gateway)", () => {
+describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
@@ -358,5 +359,41 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
     const storedSecrets = await db.select().from(companySecrets);
     expect(storedSecrets).toHaveLength(1);
     expect((storedPayload.apiKey as { secretId: string }).secretId).toBe(storedSecrets[0]?.id);
+  });
+
+  it("removes replayed OpenClaw auth headers before persistence", async () => {
+    const companyId = randomUUID();
+    const literalToken = `openclaw-token-${randomUUID()}`;
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const replayed = mergeJoinDefaultsPayloadForReplay(
+      { url: "ws://127.0.0.1:18789", headers: { "x-custom": "keep" } },
+      { headers: { authorization: `Bearer ${literalToken}` }, disableDeviceAuth: true },
+    );
+    const normalized = normalizeAgentDefaultsForJoin({
+      adapterType: "openclaw_gateway",
+      defaultsPayload: replayed,
+      deploymentMode: "authenticated",
+      deploymentExposure: "private",
+      bindHost: "127.0.0.1",
+      allowedHostnames: [],
+    });
+    expect(normalized.fatalErrors).toEqual([]);
+
+    const persisted = await prepareAgentDefaultsPayloadForJoinPersistence({
+      db,
+      companyId,
+      adapterType: "openclaw_gateway",
+      normalized: normalized.normalized,
+    });
+
+    expect(JSON.stringify(persisted)).not.toContain(literalToken);
+    expect(persisted?.headers).toEqual({ "x-custom": "keep" });
+    expect(persisted?.authToken).toMatchObject({ type: "secret_ref", version: "latest" });
   });
 });
