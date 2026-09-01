@@ -42,6 +42,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InlineBanner } from "../components/InlineBanner";
 import type { Agent, Issue } from "@paperclipai/shared";
+import { RegiaObjectiveCard } from "../components/RegiaObjectiveCard";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { SmokeLabDashboardCard } from "../components/SmokeLabDashboardCard";
 
@@ -426,6 +427,8 @@ export function Dashboard() {
           </button>
         </div>
       )}
+
+      <RegiaObjectiveCard companyId={selectedCompanyId!} projects={projects} agents={agents} />
 
       <ActiveAgentsPanel companyId={selectedCompanyId!} />
 

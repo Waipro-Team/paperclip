@@ -305,6 +305,7 @@ export const queryKeys = {
   environments: {
     list: (companyId: string) => ["environments", companyId] as const,
     capabilities: (companyId: string) => ["environment-capabilities", companyId] as const,
+    secretRefs: (environmentId: string) => ["environments", environmentId, "secret-refs"] as const,
     customImageTemplate: (environmentId: string) =>
       ["environments", environmentId, "custom-image-template"] as const,
     customImageSetupSession: (sessionId: string) =>
@@ -315,6 +316,8 @@ export const queryKeys = {
     list: (companyId: string, opts: { includeArchived?: boolean } = {}) =>
       ["projects", companyId, { includeArchived: opts.includeArchived === true }] as const,
     detail: (id: string) => ["projects", "detail", id] as const,
+    workspaces: (companyId: string, projectId: string) =>
+      ["projects", companyId, projectId, "workspaces"] as const,
   },
   cases: {
     list: (companyId: string) => ["cases", companyId] as const,
