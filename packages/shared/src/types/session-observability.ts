@@ -45,7 +45,8 @@ export interface SessionEventReceipt {
   source: "activity" | "heartbeat_event";
   action: string;
   entityType: string;
-  entityId: string;
+  /** Raw activity entity identifiers are intentionally never exposed. */
+  entityId: string | null;
   occurredAt: Date | string;
 }
 

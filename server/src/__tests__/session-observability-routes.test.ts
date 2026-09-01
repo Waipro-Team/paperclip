@@ -22,7 +22,7 @@ type TestActor = {
   agentId?: string;
   keyId?: string;
   keyScope?: { kind: "standard" } | { kind: "task_bridge"; parentIssueId: string };
-  source: "session" | "agent_key";
+  source: "session" | "agent_key" | "agent_jwt";
   isInstanceAdmin?: boolean;
 };
 
@@ -74,6 +74,50 @@ describe("session observability routes", () => {
     expect(response.body).toEqual({ nodes: [], messages: [] });
   });
 
+  it("returns the read model to an authorized instance-admin board user", async () => {
+    mockRead.mockResolvedValue({ nodes: [], messages: [] });
+    const response = await request(await createApp(["company-tec"], {
+      type: "board",
+      userId: "instance-admin",
+      companyIds: ["company-tec"],
+      source: "session",
+      isInstanceAdmin: true,
+    })).get("/api/companies/company-tec/session-observability");
+
+    expect(response.status).toBe(200);
+    expect(mockRead).toHaveBeenCalledWith("company-tec");
+  });
+
+  it.each([
+    {
+      label: "standard agent key",
+      actor: {
+        type: "agent" as const,
+        companyId: "company-tec",
+        agentId: "standard-agent",
+        keyId: "standard-key",
+        keyScope: { kind: "standard" as const },
+        source: "agent_key" as const,
+      },
+    },
+    {
+      label: "low-trust agent JWT",
+      actor: {
+        type: "agent" as const,
+        companyId: "company-tec",
+        agentId: "low-trust-agent",
+        source: "agent_jwt" as const,
+      },
+    },
+  ])("rejects a same-company $label before policy or graph reads", async ({ actor }) => {
+    const response = await request(await createApp(["company-tec"], actor))
+      .get("/api/companies/company-tec/session-observability");
+
+    expect(response.status).toBe(403);
+    expect(mockDecide).not.toHaveBeenCalled();
+    expect(mockRead).not.toHaveBeenCalled();
+  });
+
   it("rejects a same-company task-bridge agent key before reading the graph", async () => {
     const response = await request(await createApp(["company-tec"], {
       type: "agent",
@@ -86,7 +130,7 @@ describe("session observability routes", () => {
       .get("/api/companies/company-tec/session-observability");
 
     expect(response.status).toBe(403);
-    expect(mockDecide).toHaveBeenCalledWith(expect.objectContaining({ action: "company_scope:read" }));
+    expect(mockDecide).not.toHaveBeenCalled();
     expect(mockRead).not.toHaveBeenCalled();
   });
 

@@ -24,7 +24,7 @@ import type {
 } from "@paperclipai/shared";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 
-const OPEN_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked"] as const;
+const CURRENT_ISSUE_STATUS = "in_progress" as const;
 const HIDDEN_AGENT_STATUSES = ["terminated", "pending_approval"] as const;
 const LIVE_RUN_STATUSES = new Set(["queued", "scheduled_retry", "running"]);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
@@ -68,6 +68,16 @@ const PUBLIC_HEARTBEAT_EVENT_TYPES = new Set([
   "turn.interrupted",
   "turn.started",
 ]);
+const PUBLIC_ACTIVITY_ACTIONS = new Set([
+  "agent.created",
+  "agent.updated",
+  "agent.status_updated",
+  "issue.assigned",
+  "issue.created",
+  "issue.status_updated",
+  "issue.updated",
+]);
+const PUBLIC_ACTIVITY_ENTITY_TYPES = new Set(["agent", "issue"]);
 const MAX_AGENT_ROWS = 500;
 const MAX_ISSUE_ROWS = 1_000;
 const MAX_SOURCE_ROWS = 2_000;
@@ -167,6 +177,14 @@ function receiptStateForInteraction(status: string, run: RunRow | undefined): Se
 
 export function sanitizeSessionHeartbeatEventType(eventType: string): string {
   return PUBLIC_HEARTBEAT_EVENT_TYPES.has(eventType) ? eventType : "run.event";
+}
+
+export function sanitizeSessionActivityAction(action: string): string {
+  return PUBLIC_ACTIVITY_ACTIONS.has(action) ? action : "activity.event";
+}
+
+export function sanitizeSessionActivityEntityType(entityType: string): string {
+  return PUBLIC_ACTIVITY_ENTITY_TYPES.has(entityType) ? entityType : "entity";
 }
 
 function isNewerRun(candidate: RunRow, current: RunRow | undefined): boolean {
@@ -283,7 +301,6 @@ export function assembleSessionObservability(input: {
     agentId: string;
     action: string;
     entityType: string;
-    entityId: string;
     createdAt: Date;
   }>;
   heartbeatEventRows: Array<{
@@ -299,7 +316,8 @@ export function assembleSessionObservability(input: {
 }): SessionObservabilityResponse {
   const generatedAt = input.now ?? new Date();
   const agentsById = new Map(input.agentRows.map((row) => [row.id, row]));
-  const issuesById = new Map(input.issueRows.map((row) => [row.id, row]));
+  const currentIssueRows = input.issueRows.filter((row) => row.status === CURRENT_ISSUE_STATUS);
+  const issuesById = new Map(currentIssueRows.map((row) => [row.id, row]));
   const latestRunByAgent = new Map<string, RunRow>();
   const liveRunByAgent = new Map<string, RunRow>();
   const runByCommentId = new Map<string, RunRow>();
@@ -321,7 +339,7 @@ export function assembleSessionObservability(input: {
   }
 
   const assignedIssueByAgent = new Map<string, IssueRow>();
-  for (const issue of input.issueRows) {
+  for (const issue of currentIssueRows) {
     if (issue.assigneeAgentId && isPreferredAssignedIssue(issue, assignedIssueByAgent.get(issue.assigneeAgentId))) {
       assignedIssueByAgent.set(issue.assigneeAgentId, issue);
     }
@@ -329,7 +347,6 @@ export function assembleSessionObservability(input: {
 
   const blockerCountByIssue = new Map<string, number>();
   for (const relation of input.relationRows) {
-    if (!issuesById.has(relation.blockerIssueId)) continue;
     blockerCountByIssue.set(
       relation.blockedIssueId,
       (blockerCountByIssue.get(relation.blockedIssueId) ?? 0) + 1,
@@ -407,9 +424,9 @@ export function assembleSessionObservability(input: {
     lastActivityByAgent.set(row.agentId, {
       id: row.id,
       source: "activity",
-      action: row.action,
-      entityType: row.entityType,
-      entityId: row.entityId,
+      action: sanitizeSessionActivityAction(row.action),
+      entityType: sanitizeSessionActivityEntityType(row.entityType),
+      entityId: null,
       occurredAt: row.createdAt,
     });
   }
@@ -604,7 +621,10 @@ export function sessionObservabilityService(db: Db) {
           updatedAt: heartbeatRuns.updatedAt,
         })
         .from(heartbeatRuns)
-        .where(eq(heartbeatRuns.companyId, companyId))
+        .where(and(
+          eq(heartbeatRuns.companyId, companyId),
+          gte(heartbeatRuns.createdAt, recentCutoff),
+        ))
         .orderBy(desc(heartbeatRuns.createdAt), heartbeatRuns.id)
         .limit(MAX_SOURCE_ROWS),
       db
@@ -642,7 +662,7 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(issues.companyId, companyId),
           isNull(issues.hiddenAt),
-          inArray(issues.status, [...OPEN_ISSUE_STATUSES]),
+          eq(issues.status, CURRENT_ISSUE_STATUS),
         ))
         .orderBy(desc(issues.updatedAt), issues.id)
         .limit(MAX_ISSUE_ROWS),
@@ -652,7 +672,6 @@ export function sessionObservabilityService(db: Db) {
           agentId: activityLog.agentId,
           action: activityLog.action,
           entityType: activityLog.entityType,
-          entityId: activityLog.entityId,
           createdAt: activityLog.createdAt,
         })
         .from(activityLog)
@@ -752,7 +771,6 @@ export function sessionObservabilityService(db: Db) {
         agentId: string;
         action: string;
         entityType: string;
-        entityId: string;
         createdAt: Date;
       }>,
       heartbeatEventRows,
