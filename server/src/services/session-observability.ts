@@ -26,7 +26,8 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from 
 
 const CURRENT_ISSUE_STATUS = "in_progress" as const;
 const HIDDEN_AGENT_STATUSES = ["terminated", "pending_approval"] as const;
-const LIVE_RUN_STATUSES = new Set(["queued", "scheduled_retry", "running"]);
+const LIVE_RUN_STATUS_VALUES = ["queued", "scheduled_retry", "running"] as const;
+const LIVE_RUN_STATUSES = new Set<string>(LIVE_RUN_STATUS_VALUES);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
 const POSITIVE_INTERACTION_STATUSES = new Set(["accepted", "answered"]);
 const NEGATIVE_INTERACTION_STATUSES = new Set(["rejected", "cancelled", "expired", "failed"]);
@@ -206,6 +207,24 @@ function isPreferredLiveRun(candidate: RunRow, current: RunRow | undefined): boo
   if (!current) return true;
   return liveRunRank(candidate.status) < liveRunRank(current.status)
     || (liveRunRank(candidate.status) === liveRunRank(current.status) && isNewerRun(candidate, current));
+}
+
+function mergeHeartbeatRunRows(activeRows: RunRow[], recentRows: RunRow[]): RunRow[] {
+  const rowsById = new Map<string, RunRow>();
+
+  // Active rows are queried independently from the historical lookback so a
+  // long-running or delayed run never disappears merely because it crossed
+  // the retention window. Recent active rows occur in both result sets; keep
+  // one copy and preserve the independently queried active record.
+  for (const row of activeRows) rowsById.set(row.id, row);
+  for (const row of recentRows) {
+    if (!rowsById.has(row.id)) rowsById.set(row.id, row);
+  }
+
+  return [...rowsById.values()].sort((left, right) => (
+    timeOf(right.createdAt) - timeOf(left.createdAt)
+    || left.id.localeCompare(right.id)
+  ));
 }
 
 const ISSUE_ACTIVITY_RANK: Record<string, number> = {
@@ -587,8 +606,31 @@ export function sessionObservabilityService(db: Db) {
     const runContextCommentId = sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'commentId'`;
     const runContextInteractionId = sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'interactionId'`;
 
+    const heartbeatRunSelection = {
+      id: heartbeatRuns.id,
+      agentId: heartbeatRuns.agentId,
+      status: heartbeatRuns.status,
+      retryOfRunId: heartbeatRuns.retryOfRunId,
+      continuationAttempt: heartbeatRuns.continuationAttempt,
+      contextIssueId: runContextIssueId,
+      contextCommentId: runContextCommentId,
+      contextInteractionId: runContextInteractionId,
+      startedAt: heartbeatRuns.startedAt,
+      finishedAt: heartbeatRuns.finishedAt,
+      createdAt: heartbeatRuns.createdAt,
+      updatedAt: heartbeatRuns.updatedAt,
+    };
     const recentCutoff = new Date(Date.now() - RECENT_SOURCE_WINDOW_MS);
-    const [agentRows, runRows, issueRows, activityRows, heartbeatEventRows, commentRows, interactionRows] = await Promise.all([
+    const [
+      agentRows,
+      activeRunRows,
+      recentRunRows,
+      issueRows,
+      activityRows,
+      heartbeatEventRows,
+      commentRows,
+      interactionRows,
+    ] = await Promise.all([
       db
         .select({
           id: agents.id,
@@ -606,20 +648,16 @@ export function sessionObservabilityService(db: Db) {
         .orderBy(agents.status, agents.id)
         .limit(MAX_AGENT_ROWS),
       db
-        .select({
-          id: heartbeatRuns.id,
-          agentId: heartbeatRuns.agentId,
-          status: heartbeatRuns.status,
-          retryOfRunId: heartbeatRuns.retryOfRunId,
-          continuationAttempt: heartbeatRuns.continuationAttempt,
-          contextIssueId: runContextIssueId,
-          contextCommentId: runContextCommentId,
-          contextInteractionId: runContextInteractionId,
-          startedAt: heartbeatRuns.startedAt,
-          finishedAt: heartbeatRuns.finishedAt,
-          createdAt: heartbeatRuns.createdAt,
-          updatedAt: heartbeatRuns.updatedAt,
-        })
+        .select(heartbeatRunSelection)
+        .from(heartbeatRuns)
+        .where(and(
+          eq(heartbeatRuns.companyId, companyId),
+          inArray(heartbeatRuns.status, [...LIVE_RUN_STATUS_VALUES]),
+        ))
+        .orderBy(desc(heartbeatRuns.createdAt), heartbeatRuns.id)
+        .limit(MAX_SOURCE_ROWS),
+      db
+        .select(heartbeatRunSelection)
         .from(heartbeatRuns)
         .where(and(
           eq(heartbeatRuns.companyId, companyId),
@@ -743,6 +781,8 @@ export function sessionObservabilityService(db: Db) {
         .orderBy(desc(issueThreadInteractions.createdAt), issueThreadInteractions.id)
         .limit(MAX_MESSAGE_ROWS),
     ]);
+
+    const runRows = mergeHeartbeatRunRows(activeRunRows, recentRunRows);
 
     const issueIds = issueRows.map((issue) => issue.id);
     const relationRows = issueIds.length === 0
