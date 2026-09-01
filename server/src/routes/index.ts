@@ -21,6 +21,7 @@ export {
 export { routineRoutes } from "./routines.js";
 export { goalRoutes } from "./goals.js";
 export { onboardingSeedRoutes } from "./onboarding-seed.js";
+export { githubProjectReconciliationRoutes } from "./github-project-reconciliation.js";
 export { approvalRoutes } from "./approvals.js";
 export { secretRoutes } from "./secrets.js";
 export { toolAccessRoutes } from "./tool-access.js";

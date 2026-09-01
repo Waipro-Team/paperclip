@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "issues_github_project_v2_origin_uq" ON "issues" USING btree ("company_id","origin_kind","origin_id") WHERE "issues"."origin_kind" = 'github_project_v2'
+          and "issues"."origin_id" is not null;
