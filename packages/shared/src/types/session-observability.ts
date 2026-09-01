@@ -59,7 +59,8 @@ export interface SessionMessageReceipt {
   id: string;
   source: "comment" | "interaction";
   from: SessionAgentRef;
-  to: SessionAgentRef;
+  /** Null when no persisted addressee, resolver, or receiving run proves the recipient. */
+  to: SessionAgentRef | null;
   issue: SessionIssueRef;
   state: SessionReceiptState;
   runId: string | null;

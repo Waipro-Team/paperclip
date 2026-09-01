@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type {
   SessionMessageReceipt,
   SessionObservabilityNode,
+  SessionObservabilityResponse,
   SessionObservabilityPhase,
   SessionObservabilityStatus,
   SessionReceiptState,
@@ -10,6 +11,8 @@ import type {
 import { Activity, GitBranch, MessageSquare, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { sessionObservabilityApi } from "../api/sessionObservability";
 import { queryKeys } from "../lib/queryKeys";
+import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
+import { useVisibilityRefetchInterval } from "../lib/polling";
 import { relativeTime } from "../lib/utils";
 import { Link } from "../lib/router";
 import { EmptyState } from "./EmptyState";
@@ -167,7 +170,7 @@ function MessageReceiptRow({ receipt }: { receipt: SessionMessageReceipt }) {
     <div className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">
-          {receipt.from.name} → {receipt.to.name}
+          {receipt.from.name} → {receipt.to?.name ?? "Destinatario non risolto"}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{receipt.source === "comment" ? "Commento task" : "Interazione task"}</span>
@@ -184,11 +187,29 @@ function MessageReceiptRow({ receipt }: { receipt: SessionMessageReceipt }) {
 }
 
 export function SessionObservability({ companyId }: { companyId: string }) {
-  const query = useQuery({
-    queryKey: queryKeys.agents.sessionObservability(companyId),
-    queryFn: () => sessionObservabilityApi.get(companyId),
-    refetchInterval: 10_000,
+  const queryKey = queryKeys.agents.sessionObservability(companyId);
+  const refetchInterval = useVisibilityRefetchInterval({
+    visibleMs: 15_000,
+    unfocusedMs: 30_000,
+    hiddenMs: false,
   });
+  const shared = useSharedPollingQuery<SessionObservabilityResponse>({
+    companyId,
+    resourceKey: "session-observability",
+    queryKey,
+    refetchInterval,
+    leaderOnly: true,
+  });
+  const query = useQuery({
+    queryKey,
+    queryFn: () => sessionObservabilityApi.get(companyId),
+    enabled: shared.enabled,
+    refetchInterval: shared.refetchInterval,
+    staleTime: 10_000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_000 * (2 ** attempt), 15_000),
+  });
+  usePublishSharedQueryData(shared, query.data, query.dataUpdatedAt);
 
   const counts = useMemo(() => {
     const result: Record<SessionObservabilityStatus, number> = {

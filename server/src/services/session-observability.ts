@@ -22,15 +22,59 @@ import type {
   SessionObservabilityStatus,
   SessionReceiptState,
 } from "@paperclipai/shared";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 
 const OPEN_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked"] as const;
-const LIVE_RUN_STATUSES = new Set(["queued", "running"]);
+const HIDDEN_AGENT_STATUSES = ["terminated", "pending_approval"] as const;
+const LIVE_RUN_STATUSES = new Set(["queued", "scheduled_retry", "running"]);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
-const TERMINAL_RUN_STATUSES = new Set(["succeeded", "failed", "cancelled", "timed_out"]);
+const POSITIVE_INTERACTION_STATUSES = new Set(["accepted", "answered"]);
+const NEGATIVE_INTERACTION_STATUSES = new Set(["rejected", "cancelled", "expired", "failed"]);
+const PUBLIC_HEARTBEAT_EVENT_TYPES = new Set([
+  "adapter.invoke",
+  "delegation.completed",
+  "delegation.started",
+  "delegation.updated",
+  "done",
+  "error",
+  "harness.diagnostic",
+  "item.completed",
+  "item.started",
+  "lifecycle",
+  "output",
+  "plan.updated",
+  "provider.notice.recorded",
+  "research.completed",
+  "research.progressed",
+  "research.started",
+  "run.phase.timing",
+  "run.result.proposed",
+  "run.startup.step",
+  "run.terminal",
+  "runtime.diagnostic",
+  "runtime_request.cancelled",
+  "runtime_request.created",
+  "runtime_request.expired",
+  "runtime_request.resolved",
+  "session.resumed",
+  "session.started",
+  "status",
+  "tool.completed",
+  "tool.execution.completed",
+  "tool.execution.progressed",
+  "tool.execution.started",
+  "turn.completed",
+  "turn.failed",
+  "turn.interrupted",
+  "turn.started",
+]);
+const MAX_AGENT_ROWS = 500;
+const MAX_ISSUE_ROWS = 1_000;
 const MAX_SOURCE_ROWS = 2_000;
 const MAX_MESSAGE_ROWS = 200;
+const MAX_RELATION_ROWS = 2_000;
 const MAX_MESSAGE_RECEIPTS = 24;
+const RECENT_SOURCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type AgentRow = {
   id: string;
@@ -79,8 +123,6 @@ type CommentRow = {
   issueIdentifier: string | null;
   issueStatus: string;
   authorAgentId: string;
-  recipientAgentId: string | null;
-  createdByRunId: string | null;
   createdAt: Date;
 };
 
@@ -91,8 +133,7 @@ type InteractionRow = {
   issueStatus: string;
   createdByAgentId: string;
   addresseeAgentId: string | null;
-  recipientAgentId: string | null;
-  sourceRunId: string | null;
+  resolvedByAgentId: string | null;
   resolvedByRunId: string | null;
   status: string;
   resolvedAt: Date | null;
@@ -115,6 +156,57 @@ function receiptStateForRun(run: RunRow | undefined): SessionReceiptState {
   if (run.status === "running") return "received";
   if (run.status === "succeeded") return "acknowledged";
   return "failed";
+}
+
+function receiptStateForInteraction(status: string, run: RunRow | undefined): SessionReceiptState {
+  if (status === "pending") return receiptStateForRun(run);
+  if (POSITIVE_INTERACTION_STATUSES.has(status)) return "acknowledged";
+  if (NEGATIVE_INTERACTION_STATUSES.has(status)) return "failed";
+  return "recorded";
+}
+
+export function sanitizeSessionHeartbeatEventType(eventType: string): string {
+  return PUBLIC_HEARTBEAT_EVENT_TYPES.has(eventType) ? eventType : "run.event";
+}
+
+function isNewerRun(candidate: RunRow, current: RunRow | undefined): boolean {
+  if (!current) return true;
+  return timeOf(candidate.updatedAt) > timeOf(current.updatedAt)
+    || (timeOf(candidate.updatedAt) === timeOf(current.updatedAt)
+      && (timeOf(candidate.createdAt) > timeOf(current.createdAt)
+        || (timeOf(candidate.createdAt) === timeOf(current.createdAt)
+          && candidate.id.localeCompare(current.id) < 0)));
+}
+
+function liveRunRank(status: string): number {
+  if (status === "running") return 0;
+  if (status === "queued") return 1;
+  return 2;
+}
+
+function isPreferredLiveRun(candidate: RunRow, current: RunRow | undefined): boolean {
+  if (!current) return true;
+  return liveRunRank(candidate.status) < liveRunRank(current.status)
+    || (liveRunRank(candidate.status) === liveRunRank(current.status) && isNewerRun(candidate, current));
+}
+
+const ISSUE_ACTIVITY_RANK: Record<string, number> = {
+  in_progress: 0,
+  blocked: 1,
+  in_review: 2,
+  todo: 3,
+  backlog: 4,
+};
+
+function isPreferredAssignedIssue(candidate: IssueRow, current: IssueRow | undefined): boolean {
+  if (!current) return true;
+  const candidateRank = ISSUE_ACTIVITY_RANK[candidate.status] ?? Number.MAX_SAFE_INTEGER;
+  const currentRank = ISSUE_ACTIVITY_RANK[current.status] ?? Number.MAX_SAFE_INTEGER;
+  return candidateRank < currentRank
+    || (candidateRank === currentRank
+      && (timeOf(candidate.updatedAt) > timeOf(current.updatedAt)
+        || (timeOf(candidate.updatedAt) === timeOf(current.updatedAt)
+          && candidate.id.localeCompare(current.id) < 0)));
 }
 
 function phaseForNode(input: {
@@ -214,21 +306,23 @@ export function assembleSessionObservability(input: {
   const runByInteractionId = new Map<string, RunRow>();
 
   for (const run of input.runRows) {
-    if (!latestRunByAgent.has(run.agentId)) latestRunByAgent.set(run.agentId, run);
-    if (LIVE_RUN_STATUSES.has(run.status) && !liveRunByAgent.has(run.agentId)) {
+    if (isNewerRun(run, latestRunByAgent.get(run.agentId))) {
+      latestRunByAgent.set(run.agentId, run);
+    }
+    if (LIVE_RUN_STATUSES.has(run.status) && isPreferredLiveRun(run, liveRunByAgent.get(run.agentId))) {
       liveRunByAgent.set(run.agentId, run);
     }
-    if (run.contextCommentId && !runByCommentId.has(run.contextCommentId)) {
+    if (run.contextCommentId && isNewerRun(run, runByCommentId.get(run.contextCommentId))) {
       runByCommentId.set(run.contextCommentId, run);
     }
-    if (run.contextInteractionId && !runByInteractionId.has(run.contextInteractionId)) {
+    if (run.contextInteractionId && isNewerRun(run, runByInteractionId.get(run.contextInteractionId))) {
       runByInteractionId.set(run.contextInteractionId, run);
     }
   }
 
   const assignedIssueByAgent = new Map<string, IssueRow>();
   for (const issue of input.issueRows) {
-    if (issue.assigneeAgentId && !assignedIssueByAgent.has(issue.assigneeAgentId)) {
+    if (issue.assigneeAgentId && isPreferredAssignedIssue(issue, assignedIssueByAgent.get(issue.assigneeAgentId))) {
       assignedIssueByAgent.set(issue.assigneeAgentId, issue);
     }
   }
@@ -245,52 +339,56 @@ export function assembleSessionObservability(input: {
   const messages: SessionMessageReceipt[] = [];
   for (const comment of input.commentRows) {
     const from = agentsById.get(comment.authorAgentId);
-    const to = comment.recipientAgentId ? agentsById.get(comment.recipientAgentId) : undefined;
-    if (!from || !to || from.id === to.id) continue;
+    if (!from) continue;
     const receivingRun = runByCommentId.get(comment.id);
-    const state = receiptStateForRun(receivingRun);
+    const recipient = receivingRun ? agentsById.get(receivingRun.agentId) : undefined;
+    if (recipient?.id === from.id) continue;
+    const state = recipient ? receiptStateForRun(receivingRun) : "recorded";
     messages.push({
       id: comment.id,
       source: "comment",
       from: agentRef(from),
-      to: agentRef(to),
+      to: recipient ? agentRef(recipient) : null,
       issue: {
         id: comment.issueId,
         identifier: comment.issueIdentifier,
         status: comment.issueStatus,
       },
       state,
-      runId: receivingRun?.id ?? comment.createdByRunId,
+      runId: receivingRun?.id ?? null,
       createdAt: comment.createdAt,
-      acknowledgedAt: receivingRun && TERMINAL_RUN_STATUSES.has(receivingRun.status)
-        ? receivingRun.finishedAt ?? receivingRun.updatedAt
+      acknowledgedAt: state === "acknowledged"
+        ? receivingRun?.finishedAt ?? receivingRun?.updatedAt ?? null
         : null,
     });
   }
 
   for (const interaction of input.interactionRows) {
     const from = agentsById.get(interaction.createdByAgentId);
-    const recipientId = interaction.addresseeAgentId ?? interaction.recipientAgentId;
-    const to = recipientId ? agentsById.get(recipientId) : undefined;
-    if (!from || !to || from.id === to.id) continue;
+    if (!from) continue;
     const receivingRun = runByInteractionId.get(interaction.id);
-    const state = interaction.status === "pending"
-      ? receiptStateForRun(receivingRun)
-      : "acknowledged";
+    const recipientId = interaction.addresseeAgentId
+      ?? interaction.resolvedByAgentId
+      ?? receivingRun?.agentId;
+    const recipient = recipientId ? agentsById.get(recipientId) : undefined;
+    if (recipient?.id === from.id) continue;
+    const state = receiptStateForInteraction(interaction.status, receivingRun);
     messages.push({
       id: interaction.id,
       source: "interaction",
       from: agentRef(from),
-      to: agentRef(to),
+      to: recipient ? agentRef(recipient) : null,
       issue: {
         id: interaction.issueId,
         identifier: interaction.issueIdentifier,
         status: interaction.issueStatus,
       },
       state,
-      runId: receivingRun?.id ?? interaction.resolvedByRunId ?? interaction.sourceRunId,
+      runId: interaction.status === "pending"
+        ? receivingRun?.id ?? null
+        : interaction.resolvedByRunId ?? null,
       createdAt: interaction.createdAt,
-      acknowledgedAt: interaction.resolvedAt,
+      acknowledgedAt: state === "acknowledged" ? interaction.resolvedAt : null,
     });
   }
 
@@ -300,7 +398,7 @@ export function assembleSessionObservability(input: {
   const lastReceiptByAgent = new Map<string, SessionMessageReceipt>();
   for (const receipt of messages) {
     if (!lastReceiptByAgent.has(receipt.from.id)) lastReceiptByAgent.set(receipt.from.id, receipt);
-    if (!lastReceiptByAgent.has(receipt.to.id)) lastReceiptByAgent.set(receipt.to.id, receipt);
+    if (receipt.to && !lastReceiptByAgent.has(receipt.to.id)) lastReceiptByAgent.set(receipt.to.id, receipt);
   }
 
   const lastActivityByAgent = new Map<string, SessionEventReceipt>();
@@ -322,7 +420,7 @@ export function assembleSessionObservability(input: {
     lastHeartbeatEventByAgent.set(row.agentId, {
       id: String(row.id),
       source: "heartbeat_event",
-      action: row.eventType,
+      action: sanitizeSessionHeartbeatEventType(row.eventType),
       entityType: "heartbeat_run",
       entityId: row.runId,
       occurredAt: row.createdAt,
@@ -472,6 +570,7 @@ export function sessionObservabilityService(db: Db) {
     const runContextCommentId = sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'commentId'`;
     const runContextInteractionId = sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'interactionId'`;
 
+    const recentCutoff = new Date(Date.now() - RECENT_SOURCE_WINDOW_MS);
     const [agentRows, runRows, issueRows, activityRows, heartbeatEventRows, commentRows, interactionRows] = await Promise.all([
       db
         .select({
@@ -483,8 +582,12 @@ export function sessionObservabilityService(db: Db) {
           updatedAt: agents.updatedAt,
         })
         .from(agents)
-        .where(eq(agents.companyId, companyId))
-        .orderBy(agents.name),
+        .where(and(
+          eq(agents.companyId, companyId),
+          notInArray(agents.status, [...HIDDEN_AGENT_STATUSES]),
+        ))
+        .orderBy(agents.status, agents.id)
+        .limit(MAX_AGENT_ROWS),
       db
         .select({
           id: heartbeatRuns.id,
@@ -502,7 +605,7 @@ export function sessionObservabilityService(db: Db) {
         })
         .from(heartbeatRuns)
         .where(eq(heartbeatRuns.companyId, companyId))
-        .orderBy(desc(heartbeatRuns.createdAt))
+        .orderBy(desc(heartbeatRuns.createdAt), heartbeatRuns.id)
         .limit(MAX_SOURCE_ROWS),
       db
         .select({
@@ -541,8 +644,8 @@ export function sessionObservabilityService(db: Db) {
           isNull(issues.hiddenAt),
           inArray(issues.status, [...OPEN_ISSUE_STATUSES]),
         ))
-        .orderBy(desc(issues.updatedAt))
-        .limit(MAX_SOURCE_ROWS),
+        .orderBy(desc(issues.updatedAt), issues.id)
+        .limit(MAX_ISSUE_ROWS),
       db
         .select({
           id: activityLog.id,
@@ -553,8 +656,12 @@ export function sessionObservabilityService(db: Db) {
           createdAt: activityLog.createdAt,
         })
         .from(activityLog)
-        .where(and(eq(activityLog.companyId, companyId), isNotNull(activityLog.agentId)))
-        .orderBy(desc(activityLog.createdAt))
+        .where(and(
+          eq(activityLog.companyId, companyId),
+          isNotNull(activityLog.agentId),
+          gte(activityLog.createdAt, recentCutoff),
+        ))
+        .orderBy(desc(activityLog.createdAt), activityLog.id)
         .limit(MAX_SOURCE_ROWS),
       db
         .select({
@@ -565,7 +672,10 @@ export function sessionObservabilityService(db: Db) {
           createdAt: heartbeatRunEvents.createdAt,
         })
         .from(heartbeatRunEvents)
-        .where(eq(heartbeatRunEvents.companyId, companyId))
+        .where(and(
+          eq(heartbeatRunEvents.companyId, companyId),
+          gte(heartbeatRunEvents.createdAt, recentCutoff),
+        ))
         .orderBy(desc(heartbeatRunEvents.createdAt), desc(heartbeatRunEvents.id))
         .limit(MAX_SOURCE_ROWS),
       db
@@ -575,8 +685,6 @@ export function sessionObservabilityService(db: Db) {
           issueIdentifier: issues.identifier,
           issueStatus: issues.status,
           authorAgentId: issueComments.authorAgentId,
-          recipientAgentId: issues.assigneeAgentId,
-          createdByRunId: issueComments.createdByRunId,
           createdAt: issueComments.createdAt,
         })
         .from(issueComments)
@@ -585,8 +693,9 @@ export function sessionObservabilityService(db: Db) {
           eq(issueComments.companyId, companyId),
           isNotNull(issueComments.authorAgentId),
           isNull(issueComments.deletedAt),
+          gte(issueComments.createdAt, recentCutoff),
         ))
-        .orderBy(desc(issueComments.createdAt))
+        .orderBy(desc(issueComments.createdAt), issueComments.id)
         .limit(MAX_MESSAGE_ROWS),
       db
         .select({
@@ -596,8 +705,7 @@ export function sessionObservabilityService(db: Db) {
           issueStatus: issues.status,
           createdByAgentId: issueThreadInteractions.createdByAgentId,
           addresseeAgentId: issueThreadInteractions.addresseeAgentId,
-          recipientAgentId: issues.assigneeAgentId,
-          sourceRunId: issueThreadInteractions.sourceRunId,
+          resolvedByAgentId: issueThreadInteractions.resolvedByAgentId,
           resolvedByRunId: issueThreadInteractions.resolvedByRunId,
           status: issueThreadInteractions.status,
           resolvedAt: issueThreadInteractions.resolvedAt,
@@ -611,8 +719,9 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(issueThreadInteractions.companyId, companyId),
           isNotNull(issueThreadInteractions.createdByAgentId),
+          gte(issueThreadInteractions.createdAt, recentCutoff),
         ))
-        .orderBy(desc(issueThreadInteractions.createdAt))
+        .orderBy(desc(issueThreadInteractions.createdAt), issueThreadInteractions.id)
         .limit(MAX_MESSAGE_ROWS),
     ]);
 
@@ -629,7 +738,9 @@ export function sessionObservabilityService(db: Db) {
           eq(issueRelations.companyId, companyId),
           eq(issueRelations.type, "blocks"),
           inArray(issueRelations.relatedIssueId, issueIds),
-        ));
+        ))
+        .orderBy(issueRelations.relatedIssueId, issueRelations.issueId)
+        .limit(MAX_RELATION_ROWS);
 
     return assembleSessionObservability({
       agentRows,
