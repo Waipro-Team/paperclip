@@ -49,6 +49,13 @@ Status: candidate only; not deployed or connected to a live service.
 - A stale 401/403 response now triggers exactly one shared access-recovery pass
   (session/company/access invalidation and refetch), then renders an explicit
   retry action. It does not mutate memberships, broaden permissions, or loop.
+- Current-task selection treats `in_progress`, `blocked`, `in_review`, and
+  `todo` as current (never `backlog`), each mapped to its own phase, so a
+  blocked or in-review agent stays visible to the operator instead of
+  collapsing to idle. Decision made explicitly during the merge with the
+  independent session-observability hardening line (2 Sep 2026): operator
+  visibility into blocked/in-review work outweighs the narrower
+  in-progress-only definition that line used.
 
 ## Data and privacy contract
 
@@ -106,11 +113,13 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   with `--noEmit` and with emitted output. The package wrapper still stops in
   the unchanged runner prerequisite because `cargo` is not installed.
 - UI production build: passed.
-- Final control-room hardening: 23 focused tests passed and 3 PostgreSQL
-  integration tests passed in an isolated non-root container. Shared, server,
-  and UI typechecks passed; the UI production build and all four design-token
-  gates passed. These tests cover company-scoped cost mapping and one-shot
-  401/403 recovery without permission expansion or retry loops.
+- Final control-room hardening (session-observability + cost/access-recovery
+  line): 23 focused tests passed and 3 PostgreSQL integration tests passed in
+  an isolated non-root container on that line alone. These tests cover
+  company-scoped cost mapping and one-shot 401/403 recovery without permission
+  expansion or retry loops. This predates the merge with the independent
+  session-observability hardening line below and has not been re-run against
+  the combined candidate.
 - `git diff --check`: passed before both candidate commits.
 - Volume evidence: the read-model test processed 12,000 heartbeat events plus
   12,000 comment rows in 28 ms on this host, returned the 24-receipt cap, and
@@ -138,7 +147,14 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 - Cost rows are selected only for the already bounded, visible agent IDs. This
   keeps company scope and the 500-row bound aligned even when agent status and
   runtime-state orderings differ at the boundary.
-- Design token gate: all four repository-wide gates pass for the final candidate.
+- Design token gate, pre-merge status on each independent line: the
+  cost/access-recovery line reported all four repository-wide gates passing;
+  the independent session-observability hardening line reported zero
+  candidate-introduced findings but a pre-existing red repository-wide result
+  (16 findings in `ui/src/pages/TeamCatalog.tsx`, unrelated to this feature).
+  **Neither status has been re-verified against this merged candidate — treat
+  the token gate and full test suite as NOT_DEMONSTRATED until rerun on the
+  combined tree.**
 
 ## Canary plan
 
