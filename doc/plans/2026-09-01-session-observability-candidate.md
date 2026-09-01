@@ -13,6 +13,7 @@ Status: candidate only; not deployed or connected to a live service.
 - Verified implementation commit: `601e9e40d019fa44436b16b4f3634fb234ad796e`
 - Independent-judge hardening commit: `55ba850f50f372f1d2f8213a94c5ce862ba6cf32`
 - Final-review blocker fix commit: `dbc88278a59b3b79ca88817f7ac57f0109c0e9f3`
+- Active-run retention fix commit: `a875a6a5890032b5b7b3da75a87bfaf5c12efa49`
 
 ## Delivered surface
 
@@ -32,6 +33,10 @@ Status: candidate only; not deployed or connected to a live service.
   owner to phase to blocker to receipt chain.
 - A node's current task is selected only from `in_progress` issues. `todo` and
   `backlog` are never used as a fallback current task.
+- Active heartbeat runs (`running`, `queued`, and `scheduled_retry`) are read
+  independently from the 30-day historical window, merged with recent runs,
+  and deduplicated by run ID. An active run therefore remains visible after it
+  crosses the historical cutoff.
 
 ## Data and privacy contract
 
@@ -60,6 +65,13 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 
 - Targeted observability Vitest: 3 files, 15 tests passed (8 service, 6 route,
   1 UI).
+- Active-run follow-up: 15 relevant server tests passed (8 service, 6 route,
+  and 1 PostgreSQL query regression). The PostgreSQL regression ran in an
+  isolated non-root container and seeded `running`, `queued`, and
+  `scheduled_retry` rows 45 days old, newer terminal history for the same
+  agents, and an active row in a different company. All three target-company
+  agents remained visible with the expected phases, while the other-company
+  agent was absent.
 - Migration regressions: 26 tests passed (25 safety + 1 snapshot drift). The
   migration safety check passed with no new unsuppressed finding. The two new
   index statements carry an explicit maintenance-gate suppression because the
@@ -72,14 +84,21 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   The server package wrapper could not run on this host because `cargo` is not
   installed; direct server TypeScript passed and this is not reported as a full
   server package build.
+- After the active-run follow-up, direct server TypeScript passed again both
+  with `--noEmit` and with emitted output. The package wrapper still stops in
+  the unchanged runner prerequisite because `cargo` is not installed.
 - UI production build: passed.
 - `git diff --check`: passed before both candidate commits.
 - Volume evidence: the read-model test processed 12,000 heartbeat events plus
   12,000 comment rows in 28 ms on this host, returned the 24-receipt cap, and
   proved prompt/token/path-like event types absent from serialized output.
-- Query bounds: 500 agents, 1,000 in-progress issues, 2,000 run/activity/event/relation
-  rows, 200 comment/interaction rows, 24 returned receipts, plus a 30-day window
-  on heartbeat runs and high-frequency activity/event/message sources.
+- Query bounds: 500 agents, 1,000 in-progress issues, up to 2,000 active plus
+  2,000 recent heartbeat rows before ID deduplication, 2,000 activity/event/relation
+  rows, 200 comment/interaction rows, and 24 returned receipts. The 30-day
+  window still bounds historical heartbeat rows and all high-frequency
+  activity/event/message sources; active heartbeat rows bypass only that time
+  cutoff and retain the existing company/status and company/created-at index
+  predicates.
 - Migration `0234_sleepy_sentry.sql` adds `(company_id, created_at DESC)` indexes
   for `issue_comments` and `issue_thread_interactions`; the existing heartbeat
   index covers the new run lookback.
