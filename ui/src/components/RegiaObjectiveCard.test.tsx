@@ -136,6 +136,12 @@ let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 let queryClient: QueryClient | null = null;
 
+async function waitForUi(assertion: () => void) {
+  await act(async () => {
+    await vi.waitFor(assertion);
+  });
+}
+
 async function renderCard(options: { agents?: Agent[]; projects?: Project[] } = {}) {
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -154,17 +160,19 @@ async function renderCard(options: { agents?: Agent[]; projects?: Project[] } = 
       </QueryClientProvider>,
     );
   });
-  await vi.waitFor(() => {
+  await waitForUi(() => {
     expect(container!.textContent).not.toContain("Verifica configurazione Regia…");
   });
   return container;
 }
 
-function setTextarea(value: string) {
-  const textarea = container!.querySelector("textarea")!;
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
-  setter?.call(textarea, value);
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+async function setTextarea(value: string) {
+  await act(async () => {
+    const textarea = container!.querySelector("textarea")!;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+    setter?.call(textarea, value);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 
 function submitButton() {
@@ -207,7 +215,7 @@ describe("RegiaObjectiveCard", () => {
 
   it("does not post when the objective is empty", async () => {
     const panel = await renderCard();
-    await vi.waitFor(() => expect(submitButton().disabled).toBe(false));
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
 
     await act(async () => submitButton().click());
 
@@ -224,7 +232,7 @@ describe("RegiaObjectiveCard", () => {
     });
     const panel = await renderCard();
 
-    await vi.waitFor(() => expect(panel.textContent).toContain("L’ambiente deve avere un solo secret_ref"));
+    await waitForUi(() => expect(panel.textContent).toContain("L’ambiente deve avere un solo secret_ref"));
     expect(submitButton().disabled).toBe(true);
     expect(panel.textContent).not.toContain(SECRET_ID);
     expect(mockAccept).not.toHaveBeenCalled();
@@ -239,7 +247,7 @@ describe("RegiaObjectiveCard", () => {
     });
     const panel = await renderCard();
 
-    await vi.waitFor(() =>
+    await waitForUi(() =>
       expect(panel.textContent).toContain("L’ambiente deve avere un solo secret_ref"),
     );
     expect(submitButton().disabled).toBe(true);
@@ -249,11 +257,11 @@ describe("RegiaObjectiveCard", () => {
   it("shows a safe company-access error and never broadens permissions", async () => {
     mockAccept.mockRejectedValue(new ApiError("forbidden", 403, null));
     const panel = await renderCard();
-    await vi.waitFor(() => expect(submitButton().disabled).toBe(false));
-    setTextarea("Porta Team e Regia a uno stato verificabile");
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
+    await setTextarea("Porta Team e Regia a uno stato verificabile");
 
     await act(async () => submitButton().click());
-    await vi.waitFor(() => {
+    await waitForUi(() => {
       expect(panel.textContent).toContain("Non hai accesso alla Regia di questa organizzazione.");
     });
 
@@ -263,11 +271,13 @@ describe("RegiaObjectiveCard", () => {
 
   it("renders only the persisted intake chain and the blocked execution gate", async () => {
     const panel = await renderCard();
-    await vi.waitFor(() => expect(submitButton().disabled).toBe(false));
-    setTextarea("Porta Team e Regia a uno stato verificabile");
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
+    await setTextarea("Porta Team e Regia a uno stato verificabile");
 
     await act(async () => submitButton().click());
-    await vi.waitFor(() => expect(panel.querySelector('[data-testid="regia-objective-result"]')).not.toBeNull());
+    await waitForUi(() =>
+      expect(panel.querySelector('[data-testid="regia-objective-result"]')).not.toBeNull(),
+    );
 
     expect(mockAccept).toHaveBeenCalledWith(
       COMPANY_ID,
