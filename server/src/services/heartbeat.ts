@@ -306,6 +306,7 @@ import { parseExecutionPolicyBootstrapEnv } from "./execution-policy-bootstrap.j
 import { environmentRuntimeService } from "./environment-runtime.js";
 import { skillVersionSelectionMap } from "./runtime-skill-selections.js";
 import { environmentRunOrchestrator } from "./environment-run-orchestrator.js";
+import { assertRegiaIntakeExecutionBinding } from "./regia-intake.js";
 import { isUnsafeSessionWorkspaceCwd } from "./session-workspace-cwd.js";
 import {
   clearHeartbeatRunRuntimeStatus,
@@ -6925,6 +6926,31 @@ export interface HeartbeatServiceOptions {
     runId: string;
     issueId: string;
   }) => Promise<void>;
+}
+
+export async function enforceRegiaIntakeHeartbeatExecutionBinding(
+  db: Db,
+  input: {
+    companyId: string;
+    originKind: string | null | undefined;
+    issueId: string | null | undefined;
+    selectedEnvironmentId: string | null | undefined;
+  },
+  dependencies: {
+    assertBinding?: typeof assertRegiaIntakeExecutionBinding;
+  } = {},
+): Promise<boolean> {
+  if (input.originKind !== "regia_intake") return false;
+  if (!input.issueId || !input.selectedEnvironmentId) {
+    throw new Error("Regia intake execution requires an issue and selected environment");
+  }
+  await (dependencies.assertBinding ?? assertRegiaIntakeExecutionBinding)(db, {
+    companyId: input.companyId,
+    issueId: input.issueId,
+    selectedEnvironmentId: input.selectedEnvironmentId,
+    assertCompanyBinding: true,
+  });
+  return true;
 }
 
 type WorkspaceReadyCommentWriter = {
@@ -15015,6 +15041,12 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       : selectedEnvironmentId
         ? await environmentsSvc.getById(selectedEnvironmentId)
         : null;
+    const isRegiaIntakeExecution = await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
+      companyId: agent.companyId,
+      originKind: issueContext?.originKind,
+      issueId,
+      selectedEnvironmentId,
+    });
     const sharedWorkspaceConcurrency = resolveSharedWorkspaceConcurrency({
       projectPolicy: projectExecutionWorkspacePolicy,
       issueSettings: issueExecutionWorkspaceSettings,
@@ -15712,6 +15744,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       agentId: agent.id,
       persistedExecutionWorkspace,
       executionWorkspaceSettings: environmentExecutionWorkspaceSettings,
+      assertCompanyBinding: isRegiaIntakeExecution,
     });
     const selectedEnvironment = acquiredEnvironment.environment;
     // Defense-in-depth: re-check the actually-acquired environment against the

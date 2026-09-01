@@ -4,21 +4,24 @@ import {
   activityLog,
   agentWakeupRequests,
   agents,
+  builtInManagedResources,
   companies,
   companySecrets,
   companySecretBindings,
   companySecretVersions,
   createDb,
   environments,
+  environmentLeases,
   goals,
   issueCreateIdempotencyKeys,
   issues,
   projectGoals,
   projectWorkspaces,
   projects,
+  userSecretDefinitions,
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { regiaIntakeService } from "../services/regia-intake.js";
+import { assertRegiaIntakeExecutionBinding, regiaIntakeService } from "../services/regia-intake.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const describePg = support.supported ? describe : describe.skip;
@@ -43,6 +46,7 @@ describePg("regiaIntakeService", () => {
   afterEach(async () => {
     await db.delete(activityLog);
     await db.delete(agentWakeupRequests);
+    await db.delete(environmentLeases);
     await db.delete(issueCreateIdempotencyKeys);
     await db.delete(issues);
     await db.delete(projectGoals);
@@ -52,6 +56,8 @@ describePg("regiaIntakeService", () => {
     await db.delete(companySecretBindings);
     await db.delete(companySecretVersions);
     await db.delete(companySecrets);
+    await db.delete(userSecretDefinitions);
+    await db.delete(builtInManagedResources);
     await db.delete(agents);
     await db.delete(companies);
     await db.delete(environments);
@@ -117,6 +123,16 @@ describePg("regiaIntakeService", () => {
       configPath: "credentials.regia",
       versionSelector: "latest",
       required: true,
+    });
+    await db.insert(builtInManagedResources).values({
+      companyId: COMPANY_A,
+      bundleKey: "regia-test",
+      resourceKind: "environment",
+      resourceKey: "regia-sandbox",
+      resourceId: ENVIRONMENT_ID,
+      stockVersion: "1",
+      stockHash: "test",
+      defaultsJson: {},
     });
   }
 
@@ -245,6 +261,11 @@ describePg("regiaIntakeService", () => {
   it("rejects nonexistent secret versions and PII/credential-bearing context before persistence", async () => {
     await seed();
     const service = regiaIntakeService(db);
+    await db.update(companySecretBindings).set({ versionSelector: "999999" })
+      .where(and(
+        eq(companySecretBindings.secretId, SECRET_ID),
+        eq(companySecretBindings.targetId, ENVIRONMENT_ID),
+      ));
     await expect(service.accept(COMPANY_A, {
       ...request,
       idempotencyKey: "board:objective:004",
@@ -252,7 +273,7 @@ describePg("regiaIntakeService", () => {
         ...request.binding,
         credentialSecretRef: { ...request.binding.credentialSecretRef, version: 999_999 },
       },
-    }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("version is unavailable");
+    }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("Secret version not found");
 
     const unsafeValues = [
       "cristian@example.com",
@@ -295,5 +316,104 @@ describePg("regiaIntakeService", () => {
       idempotencyKey: "board:binding:wrong-environment",
     }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("not bound to the selected environment");
     expect(await db.select().from(issues)).toHaveLength(0);
+  });
+
+  it("uses native secret validation for company scope, active version and exact config path", async () => {
+    await seed();
+    const service = regiaIntakeService(db);
+
+    await db.update(companySecretVersions).set({ status: "disabled" })
+      .where(eq(companySecretVersions.secretId, SECRET_ID));
+    await expect(service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:secret:disabled",
+    }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("Secret version is not active");
+
+    await db.update(companySecretVersions).set({ status: "current" })
+      .where(eq(companySecretVersions.secretId, SECRET_ID));
+    const definitionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await db.insert(userSecretDefinitions).values({
+      id: definitionId,
+      companyId: COMPANY_A,
+      key: "REGIA_USER_CREDENTIAL",
+      name: "Regia user credential",
+    });
+    await db.update(companySecrets).set({
+      scope: "user",
+      ownerUserId: "cristian",
+      userSecretDefinitionId: definitionId,
+    }).where(eq(companySecrets.id, SECRET_ID));
+    await expect(service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:secret:user-scope",
+    }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("company-scoped");
+
+    await db.update(companySecrets).set({
+      scope: "company",
+      ownerUserId: null,
+      userSecretDefinitionId: null,
+    }).where(eq(companySecrets.id, SECRET_ID));
+    await db.insert(companySecretBindings).values({
+      companyId: COMPANY_A,
+      secretId: SECRET_ID,
+      targetType: "environment",
+      targetId: ENVIRONMENT_ID,
+      configPath: "credentials.regia.duplicate",
+      versionSelector: "latest",
+      required: true,
+    });
+    await expect(service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:secret:ambiguous-config-path",
+    }, { actorType: "user", actorId: "cristian" })).rejects.toThrow("exactly once");
+    expect(await db.select().from(issues)).toHaveLength(0);
+  });
+
+  it("guards Regia execution against omitted, unbound and cross-company environment claims with no effects", async () => {
+    await seed();
+    const intake = await regiaIntakeService(db).accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:execution-binding:001",
+    }, { actorType: "user", actorId: "cristian" });
+    const common = {
+      companyId: COMPANY_A,
+      issueId: intake.rootTaskId,
+      selectedEnvironmentId: ENVIRONMENT_ID,
+    };
+    await expect(assertRegiaIntakeExecutionBinding(db, common))
+      .rejects.toThrow("explicit company-binding enforcement");
+    await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
+      .resolves.toBeUndefined();
+
+    await db.update(companySecretBindings).set({ configPath: "credentials.regia.changed" })
+      .where(and(
+        eq(companySecretBindings.secretId, SECRET_ID),
+        eq(companySecretBindings.targetId, ENVIRONMENT_ID),
+      ));
+    await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
+      .rejects.toThrow("exactly once");
+    await db.update(companySecretBindings).set({ configPath: "credentials.regia" })
+      .where(and(
+        eq(companySecretBindings.secretId, SECRET_ID),
+        eq(companySecretBindings.targetId, ENVIRONMENT_ID),
+      ));
+
+    await db.delete(builtInManagedResources);
+    await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
+      .rejects.toThrow("unbound, ambiguous, or cross-company");
+    await db.insert(builtInManagedResources).values({
+      companyId: COMPANY_B,
+      bundleKey: "foreign-regia-test",
+      resourceKind: "environment",
+      resourceKey: "foreign-regia-sandbox",
+      resourceId: ENVIRONMENT_ID,
+      stockVersion: "1",
+      stockHash: "foreign-test",
+      defaultsJson: {},
+    });
+    await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
+      .rejects.toThrow("unbound, ambiguous, or cross-company");
+    expect(await db.select().from(environmentLeases)).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests)).toHaveLength(0);
   });
 });
