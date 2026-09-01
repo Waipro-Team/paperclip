@@ -5,6 +5,7 @@ import {
   agentRuntimeState,
   agentWakeupRequests,
   agents,
+  approvals,
   builtInManagedResources,
   companies,
   companySecrets,
@@ -17,6 +18,7 @@ import {
   heartbeatRunEvents,
   heartbeatRuns,
   issueCreateIdempotencyKeys,
+  issueApprovals,
   issues,
   projectGoals,
   projectWorkspaces,
@@ -54,6 +56,8 @@ describePg("regiaIntakeService", () => {
     await db.delete(heartbeatRuns);
     await db.delete(agentWakeupRequests);
     await db.delete(agentRuntimeState);
+    await db.delete(issueApprovals);
+    await db.delete(approvals);
     await db.delete(issueCreateIdempotencyKeys);
     await db.delete(issues);
     await db.delete(projectGoals);
@@ -158,6 +162,44 @@ describePg("regiaIntakeService", () => {
     kpis: [{ name: "receipt", target: "presente" }],
     gates: [{ name: "deploy", requiresBoardApproval: true }],
   };
+
+  async function approveRegiaExecution(issueId: string) {
+    const [receipt] = await db.select().from(activityLog).where(and(
+      eq(activityLog.companyId, COMPANY_A),
+      eq(activityLog.action, "regia.intake.accepted"),
+      eq(activityLog.entityId, issueId),
+    ));
+    expect(receipt).toBeDefined();
+    const details = receipt!.details ?? {};
+    await db.update(activityLog).set({
+      details: {
+        ...details,
+        policyConfigured: true,
+        executionAuthorized: true,
+        blockingGate: null,
+      },
+    }).where(eq(activityLog.id, receipt!.id));
+    const [approval] = await db.insert(approvals).values({
+      companyId: COMPANY_A,
+      type: "regia_execution_policy",
+      requestedByUserId: "cristian",
+      status: "approved",
+      payload: {
+        issueId,
+        receiptActivityId: receipt!.id,
+        requestFingerprint: details.requestFingerprint,
+        executionAuthorized: true,
+      },
+      decidedByUserId: "cristian",
+      decidedAt: new Date(),
+    }).returning({ id: approvals.id });
+    await db.insert(issueApprovals).values({
+      companyId: COMPANY_A,
+      issueId,
+      approvalId: approval!.id,
+      linkedByUserId: "cristian",
+    });
+  }
 
   it("creates one company-scoped root task, receipt and no wake, then reuses all ids", async () => {
     await seed();
@@ -390,6 +432,9 @@ describePg("regiaIntakeService", () => {
     await expect(assertRegiaIntakeExecutionBinding(db, common))
       .rejects.toThrow("explicit company-binding enforcement");
     await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
+      .rejects.toThrow("policy is not configured and approved");
+    await approveRegiaExecution(intake.rootTaskId);
+    await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
       .resolves.toBeUndefined();
 
     await db.update(companySecretBindings).set({ configPath: "credentials.regia.changed" })
@@ -424,18 +469,12 @@ describePg("regiaIntakeService", () => {
     expect(await db.select().from(agentWakeupRequests)).toHaveLength(0);
   });
 
-  it("fails a real heartbeat before blocked-task checkout and creates no recovery execution", async () => {
+  it("blocks a valid-binding heartbeat while policy remains false with no recovery execution", async () => {
     await seed();
     const intake = await regiaIntakeService(db).accept(COMPANY_A, {
       ...request,
       idempotencyKey: "board:heartbeat-preflight:001",
     }, { actorType: "user", actorId: "cristian" });
-    await db.update(companySecretBindings).set({ configPath: "credentials.regia.drifted" })
-      .where(and(
-        eq(companySecretBindings.secretId, SECRET_ID),
-        eq(companySecretBindings.targetId, ENVIRONMENT_ID),
-      ));
-
     const acquireRunLease = vi.fn();
     const executeProvider = vi.fn();
     const heartbeat = heartbeatService(db, {
@@ -461,7 +500,82 @@ describePg("regiaIntakeService", () => {
     const wakes = await db.select().from(agentWakeupRequests);
     expect(task).toEqual({ status: "blocked", executionRunId: null });
     expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ id: initialRun!.id, status: "failed", retryOfRunId: null });
+    expect(runs[0]).toMatchObject({
+      id: initialRun!.id,
+      status: "failed",
+      retryOfRunId: null,
+      errorCode: "regia_policy_gate_blocked",
+    });
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]).toMatchObject({ runId: initialRun!.id, status: "failed" });
+    expect(await db.select().from(environmentLeases)).toHaveLength(0);
+    expect(acquireRunLease).not.toHaveBeenCalled();
+    expect(executeProvider).not.toHaveBeenCalled();
+  });
+
+  it("restores blocked and suppresses recovery on a late selected-environment mismatch", async () => {
+    await seed();
+    const intake = await regiaIntakeService(db).accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:heartbeat-late-binding:001",
+    }, { actorType: "user", actorId: "cristian" });
+    await approveRegiaExecution(intake.rootTaskId);
+
+    const otherEnvironmentId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    await db.insert(environments).values({
+      id: otherEnvironmentId,
+      name: "Late mismatched environment",
+      driver: "sandbox",
+      status: "active",
+    });
+    await db.insert(builtInManagedResources).values({
+      companyId: COMPANY_A,
+      bundleKey: "regia-late-test",
+      resourceKind: "environment",
+      resourceKey: "late-sandbox",
+      resourceId: otherEnvironmentId,
+      stockVersion: "1",
+      stockHash: "late-test",
+      defaultsJson: {},
+    });
+    const acquireRunLease = vi.fn();
+    const executeProvider = vi.fn();
+    const heartbeat = heartbeatService(db, {
+      runtimeEnv: {},
+      environmentRuntime: {
+        acquireRunLease,
+        execute: executeProvider,
+        releaseRunLeases: vi.fn().mockResolvedValue([]),
+      } as never,
+      afterRegiaIntakePreflight: async () => {
+        await db.update(agents).set({ defaultEnvironmentId: otherEnvironmentId })
+          .where(eq(agents.id, REGIA_ID));
+        await db.update(projects).set({ executionWorkspacePolicy: { environmentId: otherEnvironmentId } })
+          .where(eq(projects.id, PROJECT_ID));
+      },
+    });
+    const initialRun = await heartbeat.invoke(REGIA_ID, "on_demand", {
+      issueId: intake.rootTaskId,
+      taskId: intake.rootTaskId,
+    }, "manual", { actorType: "user", actorId: "cristian" });
+    expect(initialRun).not.toBeNull();
+    await heartbeat.drainActiveRunExecutions();
+
+    const [task] = await db.select({
+      status: issues.status,
+      executionRunId: issues.executionRunId,
+      checkoutRunId: issues.checkoutRunId,
+    }).from(issues).where(eq(issues.id, intake.rootTaskId));
+    const runs = await db.select().from(heartbeatRuns);
+    const wakes = await db.select().from(agentWakeupRequests);
+    expect(task).toEqual({ status: "blocked", executionRunId: null, checkoutRunId: null });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      id: initialRun!.id,
+      status: "failed",
+      retryOfRunId: null,
+      errorCode: "regia_execution_binding_invalid",
+    });
     expect(wakes).toHaveLength(1);
     expect(wakes[0]).toMatchObject({ runId: initialRun!.id, status: "failed" });
     expect(await db.select().from(environmentLeases)).toHaveLength(0);

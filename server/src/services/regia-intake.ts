@@ -4,6 +4,7 @@ import type { Db } from "@paperclipai/db";
 import {
   activityLog,
   agents,
+  approvals,
   builtInManagedResources,
   companies,
   companySecretBindings,
@@ -11,6 +12,7 @@ import {
   environments,
   goals,
   issueCreateIdempotencyKeys,
+  issueApprovals,
   issues,
   projectWorkspaces,
   projectGoals,
@@ -21,11 +23,32 @@ import {
   type RegiaIntakeRequest,
   type RegiaIntakeResponse,
 } from "@paperclipai/shared";
-import { conflict, unprocessable } from "../errors.js";
+import { conflict, HttpError, unprocessable } from "../errors.js";
 import { createFeedbackRedactionState, sanitizeFeedbackText } from "./feedback-redaction.js";
 import { secretService } from "./secrets.js";
 
 const INTAKE_ACTION = "regia.intake.accepted" as const;
+const REGIA_POLICY_APPROVAL_TYPE = "regia_execution_policy" as const;
+
+export class RegiaBindingError extends HttpError {
+  readonly code = "regia_execution_binding_invalid" as const;
+
+  constructor(message: string) {
+    super(422, message, { code: "regia_execution_binding_invalid", retryable: false });
+  }
+}
+
+export class RegiaPolicyGateError extends HttpError {
+  readonly code = "regia_policy_gate_blocked" as const;
+
+  constructor(message = "Regia execution policy is not configured and approved") {
+    super(422, message, { code: "regia_policy_gate_blocked", retryable: false });
+  }
+}
+
+export function isRegiaExecutionGateError(error: unknown): error is RegiaBindingError | RegiaPolicyGateError {
+  return error instanceof RegiaBindingError || error instanceof RegiaPolicyGateError;
+}
 
 type RegiaIntakeActor = { actorType: "user"; actorId: string };
 
@@ -117,7 +140,7 @@ async function assertEnvironmentCredentialRef(db: Db, input: {
     isNull(companySecrets.deletedAt),
   )).then((rows) => rows[0] ?? null);
   if (!secret) {
-    throw unprocessable("Regia intake credential must be an active company-scoped secret_ref");
+    throw new RegiaBindingError("Regia intake credential must be an active company-scoped secret_ref");
   }
   const bindings = await db.select({ configPath: companySecretBindings.configPath })
     .from(companySecretBindings)
@@ -131,19 +154,26 @@ async function assertEnvironmentCredentialRef(db: Db, input: {
     ));
   if (bindings.length !== 1 || !bindings[0]?.configPath ||
     (input.expectedConfigPath && bindings[0].configPath !== input.expectedConfigPath)) {
-    throw unprocessable("Regia intake credential secret_ref is not bound to the selected environment exactly once");
+    throw new RegiaBindingError(
+      "Regia intake credential secret_ref is not bound to the selected environment exactly once",
+    );
   }
   const configPath = bindings[0].configPath;
-  const resolvedVersion = await secretService(db).resolveSecretVersion(
-    input.companyId,
-    input.secretId,
-    input.version,
-    {
-      consumerType: "environment",
-      consumerId: input.environmentId,
-      configPath,
-    },
-  );
+  let resolvedVersion: number;
+  try {
+    resolvedVersion = await secretService(db).resolveSecretVersion(
+      input.companyId,
+      input.secretId,
+      input.version,
+      {
+        consumerType: "environment",
+        consumerId: input.environmentId,
+        configPath,
+      },
+    );
+  } catch (error) {
+    throw new RegiaBindingError(error instanceof Error ? error.message : "Regia credential resolution failed");
+  }
   return { configPath, resolvedVersion };
 }
 
@@ -154,7 +184,7 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
   assertCompanyBinding?: boolean;
 }) {
   if (input.assertCompanyBinding !== true) {
-    throw unprocessable("Regia intake execution requires explicit company-binding enforcement");
+    throw new RegiaBindingError("Regia intake execution requires explicit company-binding enforcement");
   }
   const issue = await db.select({
     projectId: issues.projectId,
@@ -166,9 +196,9 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     .then((rows) => rows[0] ?? null);
   if (!issue || issue.originKind !== "regia_intake" || issue.reviewPolicy !== "not_creator" ||
     !issue.projectId || !issue.projectWorkspaceId || !issue.assigneeAgentId) {
-    throw unprocessable("Regia intake execution task has no valid native company cell");
+    throw new RegiaBindingError("Regia intake execution task has no valid native company cell");
   }
-  const receipt = await db.select({ details: activityLog.details }).from(activityLog).where(and(
+  const receipt = await db.select({ id: activityLog.id, details: activityLog.details }).from(activityLog).where(and(
     eq(activityLog.companyId, input.companyId),
     eq(activityLog.action, INTAKE_ACTION),
     eq(activityLog.entityType, "issue"),
@@ -187,7 +217,30 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     receiptEnvironmentId !== selectedEnvironmentId || !credentialSecretId || !credentialConfigPath ||
     (credentialVersion !== "latest" &&
       (typeof credentialVersion !== "number" || !Number.isInteger(credentialVersion) || credentialVersion < 1))) {
-    throw unprocessable("Regia intake execution receipt binding is missing or mismatched");
+    throw new RegiaBindingError("Regia intake execution receipt binding is missing or mismatched");
+  }
+
+  const approvedPolicy = await db.select({
+    id: approvals.id,
+    payload: approvals.payload,
+    decidedAt: approvals.decidedAt,
+    decidedByUserId: approvals.decidedByUserId,
+  }).from(issueApprovals).innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id)).where(and(
+    eq(issueApprovals.companyId, input.companyId),
+    eq(issueApprovals.issueId, input.issueId),
+    eq(approvals.companyId, input.companyId),
+    eq(approvals.type, REGIA_POLICY_APPROVAL_TYPE),
+    eq(approvals.status, "approved"),
+  )).then((rows) => rows.find((row) =>
+    row.decidedAt !== null && Boolean(row.decidedByUserId) &&
+    row.payload?.issueId === input.issueId &&
+    row.payload?.receiptActivityId === receipt.id &&
+    row.payload?.requestFingerprint === receipt.details?.requestFingerprint &&
+    row.payload?.executionAuthorized === true
+  ) ?? null);
+  if (receipt.details?.policyConfigured !== true || receipt.details?.executionAuthorized !== true ||
+    receipt.details?.blockingGate !== null || !approvedPolicy) {
+    throw new RegiaPolicyGateError();
   }
 
   const [project, workspace, environment, assignee, environmentBindings] = await Promise.all([
@@ -214,7 +267,7 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     !assignee || projectEnvironmentId(project.executionWorkspacePolicy) !== environment.id ||
     assignee.defaultEnvironmentId !== environment.id || boundCompanies.length !== 1 ||
     boundCompanies[0] !== input.companyId) {
-    throw unprocessable("Regia intake execution binding is unbound, ambiguous, or cross-company");
+    throw new RegiaBindingError("Regia intake execution binding is unbound, ambiguous, or cross-company");
   }
   await assertEnvironmentCredentialRef(db, {
     companyId: input.companyId,
@@ -418,6 +471,7 @@ export function regiaIntakeService(db: Db) {
           reviewPolicy: "not_creator",
           autoWake: false,
           policyConfigured: false,
+          executionAuthorized: false,
           blockingGate: "policy_configuration_required",
           requestFingerprint: fingerprint,
           binding: {
