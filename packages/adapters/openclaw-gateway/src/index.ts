@@ -17,6 +17,7 @@ Don't use when:
 
 Core fields:
 - url (string, required): OpenClaw gateway WebSocket URL (ws:// or wss://)
+- agentId (string, required): dedicated non-default OpenClaw agent; the adapter verifies it exists and has effective sandbox.mode=all before dispatch
 - headers (object, optional): non-secret handshake headers; legacy auth headers are migrated to authToken
 - authToken (string, optional): shared gateway token, persisted by Paperclip as a secret reference
 - password (string, optional): gateway shared password, if configured
@@ -30,7 +31,7 @@ Gateway connect identity fields:
 - disableDeviceAuth (boolean, optional): disable signed device payload in connect params (default false)
 
 Request behavior fields:
-- payloadTemplate (object, optional): additional fields merged into gateway agent params
+- payloadTemplate (object, optional): additional fields merged into gateway agent params; agentId cannot override the top-level selection
 - workspaceRuntime (object, optional): reserved workspace runtime metadata; workspace runtime services are manually controlled from the workspace UI and are not auto-started by heartbeats
 - timeoutSec (number, optional): adapter timeout in seconds (default 120)
 - waitTimeoutMs (number, optional): agent.wait timeout override (default timeoutSec * 1000)
@@ -41,6 +42,11 @@ Request behavior fields:
 Session routing fields:
 - sessionKeyStrategy (string, optional): issue (default), fixed, or run
 - sessionKey (string, optional): fixed session key when strategy=fixed (default paperclip)
+
+Execution target and isolation notes:
+- Remote Paperclip execution targets are rejected until WebSocket connect and dispatch can run inside that target
+- The OpenClaw main/default agent and shared sandbox scope are rejected
+- The adapter calls config.get after connect and before dispatch; an absent agent or unverifiable isolation fails closed
 
 Wake payload notes:
 - Paperclip wake context is embedded into the generated message text
