@@ -44,6 +44,22 @@ export {
 export { decisionEffectTargetIssueIds } from "./types/decision.js";
 
 export type {
+  SessionAgentRef,
+  SessionBlockerRef,
+  SessionEventReceipt,
+  SessionHandoffRef,
+  SessionIssueRef,
+  SessionLaneRef,
+  SessionMessageReceipt,
+  SessionObservabilityNode,
+  SessionObservabilityPhase,
+  SessionObservabilityResponse,
+  SessionObservabilityStatus,
+  SessionOwnerRef,
+  SessionReceiptState,
+} from "./types/session-observability.js";
+
+export type {
   ConnectionAvailabilityState,
   ConnectionSearchResultItem,
   ConnectionsSearchResult,

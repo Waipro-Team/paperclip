@@ -19,6 +19,7 @@ import { StarToggle } from "../components/StarToggle";
 import { EntityRow } from "../components/EntityRow";
 import { BuiltInLifecycleChip } from "../components/BuiltInAgentBadges";
 import { EmptyState } from "../components/EmptyState";
+import { SessionObservability } from "../components/SessionObservability";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { PageTabBar } from "../components/PageTabBar";
@@ -46,7 +47,7 @@ const ConfigureBuiltInAgentModal = lazy(() =>
   })),
 );
 
-export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin"] as const;
+export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin", "sessions"] as const;
 type FilterTab = (typeof AGENT_FILTER_TABS)[number];
 
 const AGENT_FILTER_TAB_ITEMS: { value: FilterTab; label: string }[] = [
@@ -55,6 +56,7 @@ const AGENT_FILTER_TAB_ITEMS: { value: FilterTab; label: string }[] = [
   { value: "paused", label: "Archivio" },
   { value: "error", label: "Errore" },
   { value: "builtin", label: "Integrati" },
+  { value: "sessions", label: "Sessioni" },
 ];
 
 function isFilterTab(value: string): value is FilterTab {
@@ -318,8 +320,8 @@ export function Agents() {
   }, [agents, environmentsById, environmentCapabilities, instanceSettings?.defaultEnvironmentId]);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Agents" }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: tab === "sessions" ? "Agents / Sessioni" : "Agents" }]);
+  }, [setBreadcrumbs, tab]);
 
   useEffect(() => {
     if (selectedCompanyId && requestedTab === "builtin" && instanceSettings && !builtInAgentsEnabled) {
@@ -333,6 +335,22 @@ export function Agents() {
 
   if (isLoading) {
     return <PageSkeleton variant="list" />;
+  }
+
+  if (tab === "sessions") {
+    return (
+      <div className="space-y-4">
+        <Tabs value={tab} onValueChange={(value) => navigate(`/agents/${value}`)}>
+          <PageTabBar
+            items={visibleTabItems}
+            value={tab}
+            onValueChange={(value) => navigate(`/agents/${value}`)}
+            align="start"
+          />
+        </Tabs>
+        <SessionObservability companyId={selectedCompanyId} />
+      </div>
+    );
   }
 
   const filtered = filterAgents(agents ?? [], tab, builtInAgentIds);
