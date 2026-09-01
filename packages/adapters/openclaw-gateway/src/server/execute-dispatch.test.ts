@@ -224,6 +224,39 @@ describe("openclaw_gateway execute dispatch boundary", () => {
     expect(onDispatch).not.toHaveBeenCalled();
   });
 
+  it("requires an explicit non-main agentId before opening a websocket", async () => {
+    const missingAgentContext = createContext();
+    delete missingAgentContext.config.agentId;
+    const missingResult = await execute(missingAgentContext);
+    const mainResult = await execute({
+      ...createContext(),
+      config: { ...createContext().config, agentId: "main" },
+    });
+
+    expect(missingResult).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_agent_id_missing",
+    });
+    expect(mainResult).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_main_agent_forbidden",
+    });
+    expect(websocketState.connectionAttempts).toBe(0);
+  });
+
+  it("rejects a cross-agent payload override before opening a websocket", async () => {
+    const context = createContext();
+    context.config.payloadTemplate = { agentId: "tenant-b" };
+
+    const result = await execute(context);
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_agent_id_mismatch",
+    });
+    expect(websocketState.connectionAttempts).toBe(0);
+  });
+
   it("does not dispatch when the selected agent belongs to a different tenant", async () => {
     websocketState.configSnapshot = {
       sourceConfig: {
