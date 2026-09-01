@@ -507,30 +507,30 @@ function CatalogIntro({ blueprintCount, installedCount }: { blueprintCount: numb
   return (
     <section
       data-testid="team-catalog-intro"
-      className="mx-5 mt-4 overflow-hidden rounded-2xl border border-emerald-950/10 bg-[#173d34] px-5 py-5 text-white shadow-sm sm:px-6"
+      className="mx-5 mt-4 overflow-hidden rounded-2xl border border-primary-foreground/10 bg-primary px-5 py-5 text-primary-foreground shadow-sm sm:px-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <span className="inline-flex rounded-full bg-[#f5c76b] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#173d34]">
+          <span className="inline-flex rounded-full bg-primary-foreground px-2.5 py-1 text-(length:--text-nano) font-bold uppercase tracking-(--tracking-eyebrow) text-primary">
             Paperclip / catalogo modelli
           </span>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Scegli la squadra. Avvia il lavoro.</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-emerald-50/75">
+          <p className="mt-2 max-w-xl text-sm leading-6 text-primary-foreground/75">
             Parti da una struttura verificata e gestisci responsabilità, budget e controlli da un unico posto.
           </p>
         </div>
-        <div className="grid min-w-[15rem] grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
+        <div className="grid min-w-60 grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-xl bg-primary-foreground/10 px-3 py-2.5">
             <div className="text-lg font-semibold tabular-nums">{blueprintCount}</div>
-            <div className="text-emerald-50/65">Modelli</div>
+            <div className="text-primary-foreground/65">Modelli</div>
           </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2.5">
+          <div className="rounded-xl bg-primary-foreground/10 px-3 py-2.5">
             <div className="text-lg font-semibold tabular-nums">{installedCount}</div>
-            <div className="text-emerald-50/65">Installati</div>
+            <div className="text-primary-foreground/65">Installati</div>
           </div>
-          <div className="rounded-xl bg-[#f5c76b] px-3 py-2.5 text-[#173d34]">
+          <div className="rounded-xl bg-primary-foreground px-3 py-2.5 text-primary">
             <div className="text-sm font-semibold">Core360</div>
-            <div className="text-[#173d34]/70">+ OpenClaw</div>
+            <div className="text-primary/70">+ OpenClaw</div>
           </div>
         </div>
       </div>
@@ -643,7 +643,7 @@ export function ExternalSourcesList({ sources }: { sources: CatalogTeamSourceRef
         className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        External sources · {external.length}
+        Fonti esterne · {external.length}
       </button>
       {open && (
         <ul className="divide-y divide-border rounded-md border border-border">
@@ -656,7 +656,7 @@ export function ExternalSourcesList({ sources }: { sources: CatalogTeamSourceRef
                 <span className="font-mono text-xs truncate">{source.ref}</span>
                 <span className="ml-auto text-(length:--text-micro)">
                   {code === "ok" && (
-                    <span className="text-emerald-600 dark:text-emerald-300">Bloccata</span>
+                    <span className="text-emerald-600 dark:text-emerald-300">Riferimento fissato</span>
                   )}
                   {code === "unpinned" && (
                     <span className="text-amber-600 dark:text-amber-300">Non bloccata</span>
@@ -1535,9 +1535,9 @@ export function StepSourcePolicy({
               <div className="min-w-0">
                 <p className="font-mono text-xs truncate">{source.ref}</p>
                 <p className="text-(length:--text-micro) text-muted-foreground">
-                  {code === "ok" && "pinned"}
-                  {code === "unpinned" && "unpinned reference"}
-                  {code === "unsupported_in_ui" && "not installable from the browser"}
+                  {code === "ok" && "Riferimento fissato"}
+                  {code === "unpinned" && "Riferimento non fissato"}
+                  {code === "unsupported_in_ui" && "Non installabile dal browser"}
                 </p>
               </div>
               <Badge
@@ -2033,7 +2033,7 @@ export function ApplySuccess({
         <p className="text-base font-semibold">Team installato</p>
       </div>
       <p className="text-sm text-muted-foreground">
-        {team.name} was imported into your organization. Imported entities are stamped with catalog provenance.
+        {team.name} è stato importato nella tua organizzazione. Le entità importate conservano la provenienza del catalogo.
       </p>
       {result && (
         <ul className="divide-y divide-border/60 rounded-md border border-border px-3">

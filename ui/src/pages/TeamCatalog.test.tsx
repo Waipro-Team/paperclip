@@ -264,6 +264,24 @@ describe("TeamCatalog install preview path", () => {
     expect(document.body.textContent).toContain("Progetti");
   });
 
+  it("labels a pinned external source unambiguously in Italian", async () => {
+    mockTeamCatalogApi.catalogList.mockResolvedValue([
+      makeTeam({
+        sourceRefs: [{ type: "github", ref: "acme/team@0123456789abcdef", pinned: true }],
+      }),
+    ]);
+
+    await renderPage();
+    const sourcesToggle = findButton("Fonti esterne");
+    expect(sourcesToggle).toBeTruthy();
+    await act(async () => {
+      sourcesToggle!.click();
+    });
+
+    expect(document.body.textContent).toContain("Riferimento fissato");
+    expect(document.body.textContent).not.toContain("Bloccata");
+  });
+
   it("opens the installer, fetches the preview, and submits the install", async () => {
     await renderPage();
 
@@ -300,6 +318,10 @@ describe("TeamCatalog install preview path", () => {
 
     expect(mockTeamCatalogApi.install).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).toContain("Team installato");
+    expect(document.body.textContent).toContain(
+      "Core Exec Team è stato importato nella tua organizzazione.",
+    );
+    expect(document.body.textContent).not.toContain("was imported into your organization");
   });
 
   it("requires and submits Step 4 secret values", async () => {
