@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   SessionMessageReceipt,
   SessionObservabilityNode,
@@ -10,10 +10,16 @@ import type {
 } from "@paperclipai/shared";
 import { Activity, GitBranch, MessageSquare, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { sessionObservabilityApi } from "../api/sessionObservability";
+import {
+  accessRecoveryAttemptKey,
+  recoverableAccessStatus,
+  recoverAccessQueries,
+  shouldStartAutomaticAccessRecovery,
+} from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 import { useVisibilityRefetchInterval } from "../lib/polling";
-import { relativeTime } from "../lib/utils";
+import { formatCents, relativeTime } from "../lib/utils";
 import { Link } from "../lib/router";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge } from "./StatusBadge";
@@ -110,6 +116,10 @@ function NodeCard({ node }: { node: SessionObservabilityNode }) {
             <dt className="text-muted-foreground">Ricevuta</dt>
             <dd className="mt-1"><ReceiptBadge receipt={node.lastReceipt} /></dd>
           </div>
+          <div>
+            <dt className="text-muted-foreground">Costo cumulato</dt>
+            <dd className="mt-1 font-medium tabular-nums">{formatCents(node.cost.totalCostCents)}</dd>
+          </div>
         </dl>
 
         <div className="space-y-2 border-t border-border pt-3 text-xs">
@@ -187,6 +197,7 @@ function MessageReceiptRow({ receipt }: { receipt: SessionMessageReceipt }) {
 }
 
 export function SessionObservability({ companyId }: { companyId: string }) {
+  const queryClient = useQueryClient();
   const queryKey = queryKeys.agents.sessionObservability(companyId);
   const refetchInterval = useVisibilityRefetchInterval({
     visibleMs: 15_000,
@@ -206,9 +217,27 @@ export function SessionObservability({ companyId }: { companyId: string }) {
     enabled: shared.enabled,
     refetchInterval: shared.refetchInterval,
     staleTime: 10_000,
-    retry: 2,
+    retry: (failureCount, error) => recoverableAccessStatus(error) === null && failureCount < 2,
     retryDelay: (attempt) => Math.min(1_000 * (2 ** attempt), 15_000),
   });
+  const accessRecovery = useMutation({
+    mutationFn: async (status: 401 | 403) => {
+      await recoverAccessQueries(queryClient, { status, companyId });
+    },
+  });
+  const automaticRecoveryKeyRef = useRef<string | null>(null);
+  const accessRecoveryKey = accessRecoveryAttemptKey(query.error, companyId);
+
+  useEffect(() => {
+    if (!accessRecoveryKey) {
+      automaticRecoveryKeyRef.current = null;
+      return;
+    }
+    if (!shouldStartAutomaticAccessRecovery(automaticRecoveryKeyRef.current, query.error, companyId)) return;
+    automaticRecoveryKeyRef.current = accessRecoveryKey;
+    const status = recoverableAccessStatus(query.error);
+    if (status !== null) accessRecovery.mutate(status);
+  }, [accessRecovery.mutate, accessRecoveryKey, companyId, query.error]);
   usePublishSharedQueryData(shared, query.data, query.dataUpdatedAt);
 
   const counts = useMemo(() => {
@@ -227,10 +256,28 @@ export function SessionObservability({ companyId }: { companyId: string }) {
   }
 
   if (query.error) {
+    const recoveryStatus = recoverableAccessStatus(query.error);
     return (
       <div className="space-y-3 py-8 text-center">
-        <p className="text-sm text-destructive">{query.error.message}</p>
-        <Button size="sm" variant="outline" onClick={() => query.refetch()}>Riprova</Button>
+        <p className="text-sm text-destructive">
+          {recoveryStatus === null
+            ? query.error.message
+            : "Paperclip non riesce a confermare l'accesso corrente alla compagnia."}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={accessRecovery.isPending}
+          onClick={() => {
+            if (recoveryStatus === null) {
+              void query.refetch();
+            } else {
+              accessRecovery.mutate(recoveryStatus);
+            }
+          }}
+        >
+          {accessRecovery.isPending ? "Aggiornamento…" : "Riprova"}
+        </Button>
       </div>
     );
   }

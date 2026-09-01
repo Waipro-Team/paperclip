@@ -1,6 +1,7 @@
 import type { Db } from "@paperclipai/db";
 import {
   activityLog,
+  agentRuntimeState,
   agents,
   executionWorkspaces,
   heartbeatRunEvents,
@@ -344,6 +345,7 @@ function pickLatestEvent(
 
 export function assembleSessionObservability(input: {
   agentRows: AgentRow[];
+  costRows: Array<{ agentId: string; totalCostCents: number }>;
   runRows: RunRow[];
   issueRows: IssueRow[];
   relationRows: Array<{ blockerIssueId: string; blockedIssueId: string }>;
@@ -367,6 +369,7 @@ export function assembleSessionObservability(input: {
 }): SessionObservabilityResponse {
   const generatedAt = input.now ?? new Date();
   const agentsById = new Map(input.agentRows.map((row) => [row.id, row]));
+  const costByAgent = new Map(input.costRows.map((row) => [row.agentId, row.totalCostCents]));
   const currentIssueRows = input.issueRows.filter((row) => CURRENT_ISSUE_STATUS_SET.has(row.status));
   const issuesById = new Map(currentIssueRows.map((row) => [row.id, row]));
   const latestRunByAgent = new Map<string, RunRow>();
@@ -590,6 +593,9 @@ export function assembleSessionObservability(input: {
           issueIdentifier: issue?.identifier ?? null,
           blockerCount,
         },
+        cost: {
+          totalCostCents: Math.max(0, Number(costByAgent.get(agent.id) ?? 0)),
+        },
         lastEvent,
         handoff,
         lastReceipt: lastReceiptByAgent.get(agent.id) ?? null,
@@ -612,6 +618,7 @@ export function assembleSessionObservability(input: {
     generatedAt,
     sourceTables: [
       "agents",
+      "agent_runtime_state",
       "heartbeat_runs",
       "heartbeat_run_events",
       "activity_log",
@@ -654,6 +661,7 @@ export function sessionObservabilityService(db: Db) {
     };
     const [
       agentRows,
+      costRows,
       activeRunRows,
       historyRunRows,
       issueRows,
@@ -677,6 +685,15 @@ export function sessionObservabilityService(db: Db) {
           notInArray(agents.status, [...HIDDEN_AGENT_STATUSES]),
         ))
         .orderBy(agents.status, agents.id)
+        .limit(MAX_AGENT_ROWS),
+      db
+        .select({
+          agentId: agentRuntimeState.agentId,
+          totalCostCents: agentRuntimeState.totalCostCents,
+        })
+        .from(agentRuntimeState)
+        .where(eq(agentRuntimeState.companyId, companyId))
+        .orderBy(agentRuntimeState.agentId)
         .limit(MAX_AGENT_ROWS),
       db
         .select(heartbeatRunSelection)
@@ -827,6 +844,7 @@ export function sessionObservabilityService(db: Db) {
 
     return assembleSessionObservability({
       agentRows,
+      costRows,
       runRows,
       issueRows,
       relationRows,

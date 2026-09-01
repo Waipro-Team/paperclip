@@ -56,6 +56,11 @@ export interface SessionBlockerRef {
   blockerCount: number;
 }
 
+export interface SessionCostRef {
+  /** Cumulative billed cost recorded by Paperclip for this agent. */
+  totalCostCents: number;
+}
+
 export interface SessionMessageReceipt {
   id: string;
   source: "comment" | "interaction";
@@ -89,6 +94,7 @@ export interface SessionObservabilityNode {
   issue: SessionIssueRef | null;
   lane: SessionLaneRef | null;
   blocker: SessionBlockerRef;
+  cost: SessionCostRef;
   lastEvent: SessionEventReceipt | null;
   handoff: SessionHandoffRef | null;
   lastReceipt: SessionMessageReceipt | null;
@@ -99,6 +105,7 @@ export interface SessionObservabilityResponse {
   generatedAt: Date | string;
   sourceTables: readonly [
     "agents",
+    "agent_runtime_state",
     "heartbeat_runs",
     "heartbeat_run_events",
     "activity_log",

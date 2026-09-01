@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionObservabilityResponse } from "@paperclipai/shared";
+import { ApiError } from "../api/client";
 import { SessionObservability } from "./SessionObservability";
 
 const mockGet = vi.hoisted(() => vi.fn());
@@ -54,6 +55,7 @@ describe("SessionObservability", () => {
       generatedAt: "2026-09-01T12:10:00.000Z",
       sourceTables: [
         "agents",
+        "agent_runtime_state",
         "heartbeat_runs",
         "heartbeat_run_events",
         "activity_log",
@@ -82,6 +84,7 @@ describe("SessionObservability", () => {
           branch: "candidate/mrphone-onboarding",
         },
         blocker: { state: "clear", issueIdentifier: "MRP-42", blockerCount: 0 },
+        cost: { totalCostCents: 123 },
         lastEvent: {
           id: "event-91",
           source: "heartbeat_event",
@@ -141,10 +144,28 @@ describe("SessionObservability", () => {
     expect(text).toContain("Fase");
     expect(text).toContain("Blocco");
     expect(text).toContain("Ricevuta");
+    expect(text).toContain("Costo cumulato");
+    expect(text).toContain("$1.23");
     expect(text).toContain("Corsia MrPhone");
     expect(text).toContain("candidate/mrphone-onboarding");
     expect(text).toContain("Messaggi tra agenti con ricevuta");
     expect(text).not.toContain("PRIVATE PROMPT");
     expect(text).not.toContain("private@example.test");
+  });
+
+  it("recovers a stale company denial once without broadening authorization or looping", async () => {
+    mockGet.mockRejectedValue(new ApiError("User does not have access to this company", 403, null));
+
+    const panel = renderPanel();
+
+    await vi.waitFor(() => {
+      expect(panel.textContent).toContain("Paperclip non riesce a confermare l'accesso corrente alla compagnia.");
+    });
+    await vi.waitFor(() => {
+      expect(mockGet).toHaveBeenCalledTimes(2);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(panel.textContent).not.toContain("User does not have access to this company");
   });
 });

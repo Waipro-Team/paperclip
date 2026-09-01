@@ -42,6 +42,13 @@ Status: candidate only; not deployed or connected to a live service.
   now retain the row with the newest `updated_at`/`created_at` snapshot. A
   newer terminal observation therefore replaces a stale active observation
   within the same poll.
+- Each node exposes the agent's cumulative model cost from the existing
+  company-scoped `agent_runtime_state.total_cost_cents` record. The source is
+  bounded by the agent cap, defaults to zero when absent, and never crosses a
+  company boundary.
+- A stale 401/403 response now triggers exactly one shared access-recovery pass
+  (session/company/access invalidation and refetch), then renders an explicit
+  retry action. It does not mutate memberships, broaden permissions, or loop.
 
 ## Data and privacy contract
 
@@ -99,6 +106,11 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   with `--noEmit` and with emitted output. The package wrapper still stops in
   the unchanged runner prerequisite because `cargo` is not installed.
 - UI production build: passed.
+- Final control-room hardening: 21 focused tests passed and 2 PostgreSQL
+  integration tests passed in an isolated non-root container. Shared, server,
+  and UI typechecks passed; the UI production build and all four design-token
+  gates passed. These tests cover company-scoped cost mapping and one-shot
+  401/403 recovery without permission expansion or retry loops.
 - `git diff --check`: passed before both candidate commits.
 - Volume evidence: the read-model test processed 12,000 heartbeat events plus
   12,000 comment rows in 28 ms on this host, returned the 24-receipt cap, and

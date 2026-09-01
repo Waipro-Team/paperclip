@@ -12,6 +12,7 @@ function baseInput(overrides: Partial<ObservabilityInput> = {}): ObservabilityIn
   return {
     now: at("2026-09-01T12:10:00.000Z"),
     agentRows: [],
+    costRows: [],
     runRows: [],
     issueRows: [],
     relationRows: [],
@@ -128,6 +129,7 @@ describe("session observability read model", () => {
           updatedAt: at("2026-09-01T12:03:00.000Z"),
         },
       ],
+      costRows: [{ agentId: "agent-giorgia", totalCostCents: 123 }],
       runRows: [
         {
           id: "run-giorgia",
@@ -234,7 +236,9 @@ describe("session observability read model", () => {
       status: "blocked",
       phase: "blocked",
       blocker: { state: "blocked", blockerCount: 1 },
+      cost: { totalCostCents: 0 },
     });
+    expect(result.nodes[0]).toMatchObject({ cost: { totalCostCents: 123 } });
     expect(result.messages[0]).toMatchObject({
       from: { name: "Chiara TEC" },
       to: { name: "Giorgia MrPhone" },
@@ -271,6 +275,7 @@ describe("session observability read model", () => {
           updatedAt: at("2026-09-01T12:00:00.000Z"),
         },
       ],
+      costRows: [],
       runRows: [
         {
           id: "failed-run",

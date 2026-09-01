@@ -46,6 +46,7 @@ export { decisionEffectTargetIssueIds } from "./types/decision.js";
 export type {
   SessionAgentRef,
   SessionBlockerRef,
+  SessionCostRef,
   SessionEventReceipt,
   SessionHandoffRef,
   SessionIssueRef,

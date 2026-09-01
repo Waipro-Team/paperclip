@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
+  agentRuntimeState,
   agents,
   companies,
   createDb,
@@ -40,6 +41,7 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
     await db.delete(activityLog);
     await db.delete(issues);
     await db.delete(heartbeatRuns);
+    await db.delete(agentRuntimeState);
     await db.delete(agents);
     await db.delete(companies);
   });
@@ -77,6 +79,20 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
         name: "PRIVATE OTHER COMPANY AGENT",
         role: "engineer",
         status: "idle",
+      },
+    ]);
+    await db.insert(agentRuntimeState).values([
+      {
+        agentId: activeAgents[0].id,
+        companyId,
+        adapterType: "process",
+        totalCostCents: 321,
+      },
+      {
+        agentId: otherAgentId,
+        companyId: otherCompanyId,
+        adapterType: "process",
+        totalCostCents: 999_999,
       },
     ]);
 
@@ -121,6 +137,10 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
         phase: agent.expectedPhase,
       });
     }
+    expect(result.nodes.find((node) => node.agent.id === activeAgents[0].id)?.cost).toEqual({
+      totalCostCents: 321,
+    });
+    expect(result.nodes.filter((node) => node.cost.totalCostCents === 999_999)).toHaveLength(0);
     expect(JSON.stringify(result)).not.toContain("PRIVATE OTHER COMPANY AGENT");
     expect(result.privacy).toEqual({
       contentIncluded: false,
