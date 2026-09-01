@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { assembleSessionObservability } from "../services/session-observability.js";
+import {
+  assembleSessionObservability,
+  mergeHeartbeatRunRows,
+} from "../services/session-observability.js";
 
 const at = (value: string) => new Date(value);
 
@@ -82,6 +85,28 @@ function testRun(input: {
 }
 
 describe("session observability read model", () => {
+  it("keeps the newest snapshot when a run transitions between active and recent queries", () => {
+    const activeSnapshot = testRun({
+      id: "transitioning-run",
+      agentId: "agent-1",
+      status: "running",
+      updatedAt: "2026-09-01T12:05:00.000Z",
+    });
+    const terminalSnapshot = testRun({
+      id: "transitioning-run",
+      agentId: "agent-1",
+      status: "succeeded",
+      updatedAt: "2026-09-01T12:06:00.000Z",
+    });
+
+    expect(mergeHeartbeatRunRows([activeSnapshot], [terminalSnapshot])).toEqual([
+      terminalSnapshot,
+    ]);
+    expect(mergeHeartbeatRunRows([terminalSnapshot], [activeSnapshot])).toEqual([
+      terminalSnapshot,
+    ]);
+  });
+
   it("projects Chiara TEC and Giorgia MrPhone without content or human identity fields", () => {
     const input: Parameters<typeof assembleSessionObservability>[0] = {
       now: at("2026-09-01T12:10:00.000Z"),
