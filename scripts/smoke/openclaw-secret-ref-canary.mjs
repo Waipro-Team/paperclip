@@ -170,7 +170,7 @@ function hasUrlUserInfo(value) {
 
 export function assertReceiptSafeAdapterConfig(config, label = "adapterConfig") {
   if (!isPlainRecord(config)) throw new Error(`${label} must be an object`);
-  const visit = (value, keyPath) => {
+  const visit = (value, keyPath, insideHeadersObject = false) => {
     if (value === REDACTED_SENTINEL) {
       throw new Error(`${keyPath} is redacted and cannot be used for rollback`);
     }
@@ -179,22 +179,22 @@ export function assertReceiptSafeAdapterConfig(config, label = "adapterConfig") 
     }
     if (isSecretRef(value) || isUserSecretRef(value)) return;
     if (Array.isArray(value)) {
-      value.forEach((entry, index) => visit(entry, `${keyPath}[${index}]`));
+      value.forEach((entry, index) => visit(entry, `${keyPath}[${index}]`, insideHeadersObject));
       return;
     }
     if (!isPlainRecord(value)) return;
     for (const [key, nested] of Object.entries(value)) {
       const nextPath = `${keyPath}.${key}`;
-      if (keyPath === `${label}.headers` && FORBIDDEN_RECEIPT_HEADERS.has(key.toLowerCase())) {
+      if (insideHeadersObject && FORBIDDEN_RECEIPT_HEADERS.has(key.toLowerCase())) {
         throw new Error(`${nextPath} is a credential-bearing header and cannot enter a receipt`);
       }
       if (SENSITIVE_CONFIG_KEY_RE.test(key) && nested !== undefined && !isSecretRef(nested) && !isUserSecretRef(nested)) {
         throw new Error(`${nextPath} must use a secret reference`);
       }
-      visit(nested, nextPath);
+      visit(nested, nextPath, insideHeadersObject || key.toLowerCase() === "headers");
     }
   };
-  visit(config, label);
+  visit(config, label, /(?:^|\.)headers$/i.test(label));
 }
 
 function canarySecretKey(canaryRunId) {

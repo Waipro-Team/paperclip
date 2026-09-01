@@ -122,6 +122,35 @@ test("receipt safety accepts secret refs and rejects raw or redacted credentials
     /credential-bearing header/,
   );
   assert.throws(
+    () => assertReceiptSafeAdapterConfig({
+      transport: { headers: { "x-openclaw-token": sourceToken } },
+    }),
+    /adapterConfig\.transport\.headers\.x-openclaw-token is a credential-bearing header/,
+  );
+  assert.throws(
+    () => assertReceiptSafeAdapterConfig({
+      gateway: { headers: { Authorization: `Bearer ${sourceToken}` } },
+    }),
+    /adapterConfig\.gateway\.headers\.Authorization is a credential-bearing header/,
+  );
+  assert.throws(
+    () => assertReceiptSafeAdapterConfig({
+      gateway: {
+        transport: {
+          headers: { common: { "x-openclaw-auth": sourceToken } },
+        },
+      },
+    }),
+    /adapterConfig\.gateway\.transport\.headers\.common\.x-openclaw-auth is a credential-bearing header/,
+  );
+  assert.throws(
+    () => assertReceiptSafeAdapterConfig({ Authorization: `Bearer ${sourceToken}` }, "adapterConfig.headers"),
+    /adapterConfig\.headers\.Authorization is a credential-bearing header/,
+  );
+  assert.doesNotThrow(() => assertReceiptSafeAdapterConfig({
+    transport: { headers: { "x-trace-id": "trace-123" } },
+  }));
+  assert.throws(
     () => assertReceiptSafeAdapterConfig({ url: "ws://demo-user:demo-pass@127.0.0.1:18789" }),
     /URL userinfo/,
   );
