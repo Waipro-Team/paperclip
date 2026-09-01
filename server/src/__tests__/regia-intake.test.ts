@@ -28,6 +28,7 @@ import {
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { assertRegiaIntakeExecutionBinding, regiaIntakeService } from "../services/regia-intake.js";
 import { heartbeatService } from "../services/heartbeat.js";
+import { approvalService } from "../services/approvals.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const describePg = support.supported ? describe : describe.skip;
@@ -164,41 +165,18 @@ describePg("regiaIntakeService", () => {
   };
 
   async function approveRegiaExecution(issueId: string) {
-    const [receipt] = await db.select().from(activityLog).where(and(
-      eq(activityLog.companyId, COMPANY_A),
-      eq(activityLog.action, "regia.intake.accepted"),
-      eq(activityLog.entityId, issueId),
-    ));
-    expect(receipt).toBeDefined();
-    const details = receipt!.details ?? {};
-    await db.update(activityLog).set({
-      details: {
-        ...details,
-        policyConfigured: true,
-        executionAuthorized: true,
-        blockingGate: null,
-      },
-    }).where(eq(activityLog.id, receipt!.id));
-    const [approval] = await db.insert(approvals).values({
-      companyId: COMPANY_A,
-      type: "regia_execution_policy",
-      requestedByUserId: "cristian",
-      status: "approved",
-      payload: {
-        issueId,
-        receiptActivityId: receipt!.id,
-        requestFingerprint: details.requestFingerprint,
-        executionAuthorized: true,
-      },
-      decidedByUserId: "cristian",
-      decidedAt: new Date(),
-    }).returning({ id: approvals.id });
-    await db.insert(issueApprovals).values({
-      companyId: COMPANY_A,
-      issueId,
-      approvalId: approval!.id,
-      linkedByUserId: "cristian",
-    });
+    const [approval] = await db.select({ id: approvals.id })
+      .from(issueApprovals)
+      .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
+      .where(and(
+        eq(issueApprovals.companyId, COMPANY_A),
+        eq(issueApprovals.issueId, issueId),
+        eq(approvals.type, "regia_execution_policy"),
+      ));
+    expect(approval).toBeDefined();
+    const result = await approvalService(db).approve(approval!.id, "cristian", "Approved for execution");
+    expect(result).toMatchObject({ applied: true, approval: { status: "approved" } });
+    return approval!.id;
   }
 
   it("creates one company-scoped root task, receipt and no wake, then reuses all ids", async () => {
@@ -216,6 +194,7 @@ describePg("regiaIntakeService", () => {
       executionAuthorized: false,
       policyConfigured: false,
       blockingGate: "policy_configuration_required",
+      approvalStatus: "pending",
     });
     expect(second).toEqual({ ...first, created: false });
     const [rootTask] = await db.select().from(issues).where(eq(issues.id, first.rootTaskId));
@@ -231,6 +210,15 @@ describePg("regiaIntakeService", () => {
     expect(await db.select().from(activityLog).where(and(
       eq(activityLog.companyId, COMPANY_A),
       eq(activityLog.action, "regia.intake.accepted"),
+    ))).toHaveLength(1);
+    expect(await db.select().from(approvals).where(and(
+      eq(approvals.companyId, COMPANY_A),
+      eq(approvals.type, "regia_execution_policy"),
+    ))).toHaveLength(1);
+    expect(await db.select().from(issueApprovals).where(and(
+      eq(issueApprovals.companyId, COMPANY_A),
+      eq(issueApprovals.issueId, first.rootTaskId),
+      eq(issueApprovals.approvalId, first.approvalId),
     ))).toHaveLength(1);
     expect(await db.select().from(projectGoals).where(and(
       eq(projectGoals.companyId, COMPANY_A),
@@ -465,6 +453,96 @@ describePg("regiaIntakeService", () => {
     });
     await expect(assertRegiaIntakeExecutionBinding(db, { ...common, assertCompanyBinding: true }))
       .rejects.toThrow("unbound, ambiguous, or cross-company");
+    expect(await db.select().from(environmentLeases)).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests)).toHaveLength(0);
+  });
+
+  it("approves through the native service and unlocks only the matching intake receipt", async () => {
+    await seed();
+    const service = regiaIntakeService(db);
+    const first = await service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:approval:first",
+    }, { actorType: "user", actorId: "cristian" });
+    const second = await service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:approval:second",
+      objective: "Second distinct Regia objective",
+    }, { actorType: "user", actorId: "cristian" });
+
+    await approveRegiaExecution(first.rootTaskId);
+    await expect(assertRegiaIntakeExecutionBinding(db, {
+      companyId: COMPANY_A,
+      issueId: first.rootTaskId,
+      selectedEnvironmentId: ENVIRONMENT_ID,
+      assertCompanyBinding: true,
+    })).resolves.toBeUndefined();
+    await expect(assertRegiaIntakeExecutionBinding(db, {
+      companyId: COMPANY_A,
+      issueId: second.rootTaskId,
+      selectedEnvironmentId: ENVIRONMENT_ID,
+      assertCompanyBinding: true,
+    })).rejects.toThrow("policy is not configured and approved");
+
+    const refreshed = await service.accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:approval:first",
+    }, { actorType: "user", actorId: "cristian" });
+    expect(refreshed).toMatchObject({
+      created: false,
+      approvalId: first.approvalId,
+      approvalStatus: "approved",
+      policyConfigured: true,
+      executionAuthorized: true,
+      blockingGate: null,
+    });
+  });
+
+  it("keeps stale receipt digests pending and fail-closed", async () => {
+    await seed();
+    const intake = await regiaIntakeService(db).accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:approval:stale",
+    }, { actorType: "user", actorId: "cristian" });
+    const [receipt] = await db.select().from(activityLog).where(eq(activityLog.id, intake.receipt.activityId));
+    await db.update(activityLog).set({
+      details: { ...receipt!.details, bindingDigest: "0".repeat(64) },
+    }).where(eq(activityLog.id, receipt!.id));
+
+    await expect(approvalService(db).approve(intake.approvalId, "cristian"))
+      .rejects.toThrow("no longer matches");
+    const [approval] = await db.select().from(approvals).where(eq(approvals.id, intake.approvalId));
+    expect(approval!.status).toBe("pending");
+    await expect(assertRegiaIntakeExecutionBinding(db, {
+      companyId: COMPANY_A,
+      issueId: intake.rootTaskId,
+      selectedEnvironmentId: ENVIRONMENT_ID,
+      assertCompanyBinding: true,
+    })).rejects.toThrow("binding is missing or mismatched");
+  });
+
+  it("keeps reject, revision and cancel decisions fail-closed", async () => {
+    await seed();
+    const service = regiaIntakeService(db);
+    const outcomes = [
+      { key: "reject", decide: (id: string) => approvalService(db).reject(id, "cristian") },
+      { key: "revision", decide: (id: string) => approvalService(db).requestRevision(id, "cristian") },
+      { key: "cancel", decide: (id: string) => approvalService(db).cancel(id, "cancelled by board") },
+    ];
+    for (const outcome of outcomes) {
+      const intake = await service.accept(COMPANY_A, {
+        ...request,
+        idempotencyKey: `board:approval:${outcome.key}`,
+        objective: `Regia ${outcome.key} decision remains blocked`,
+      }, { actorType: "user", actorId: "cristian" });
+      await outcome.decide(intake.approvalId);
+      await expect(assertRegiaIntakeExecutionBinding(db, {
+        companyId: COMPANY_A,
+        issueId: intake.rootTaskId,
+        selectedEnvironmentId: ENVIRONMENT_ID,
+        assertCompanyBinding: true,
+      })).rejects.toThrow("policy is not configured and approved");
+    }
     expect(await db.select().from(environmentLeases)).toHaveLength(0);
     expect(await db.select().from(agentWakeupRequests)).toHaveLength(0);
   });

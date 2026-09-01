@@ -53,7 +53,35 @@ export function isRegiaExecutionGateError(error: unknown): error is RegiaBinding
 type RegiaIntakeActor = { actorType: "user"; actorId: string };
 
 function requestFingerprint(input: RegiaIntakeRequest) {
-  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  return createHash("sha256").update(canonicalJson(input)).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function digest(value: unknown) {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function executionPolicyDigests(requestFingerprintValue: string, binding: Record<string, unknown>) {
+  const bindingDigest = digest(binding);
+  const policyDigest = digest({
+    requestFingerprint: requestFingerprintValue,
+    bindingDigest,
+    reviewPolicy: "not_creator",
+    executionAuthorizedIntent: true,
+  });
+  return { bindingDigest, policyDigest };
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
 function normalizedIdentity(value: string | null | undefined) {
@@ -212,9 +240,17 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     : null;
   const receiptEnvironmentId = typeof binding?.environmentId === "string" ? binding.environmentId : null;
   const selectedEnvironmentId = input.selectedEnvironmentId ?? receiptEnvironmentId;
+  const recordedRequestFingerprint = receipt?.details?.requestFingerprint;
+  const recordedBindingDigest = receipt?.details?.bindingDigest;
+  const recordedPolicyDigest = receipt?.details?.policyDigest;
+  const expectedDigests = binding && isSha256(recordedRequestFingerprint)
+    ? executionPolicyDigests(recordedRequestFingerprint, binding)
+    : null;
   if (!receipt || binding?.companyId !== input.companyId || binding?.projectId !== issue.projectId ||
     binding?.projectWorkspaceId !== issue.projectWorkspaceId || !selectedEnvironmentId ||
     receiptEnvironmentId !== selectedEnvironmentId || !credentialSecretId || !credentialConfigPath ||
+    !expectedDigests || recordedBindingDigest !== expectedDigests.bindingDigest ||
+    recordedPolicyDigest !== expectedDigests.policyDigest ||
     (credentialVersion !== "latest" &&
       (typeof credentialVersion !== "number" || !Number.isInteger(credentialVersion) || credentialVersion < 1))) {
     throw new RegiaBindingError("Regia intake execution receipt binding is missing or mismatched");
@@ -235,7 +271,9 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     row.decidedAt !== null && Boolean(row.decidedByUserId) &&
     row.payload?.issueId === input.issueId &&
     row.payload?.receiptActivityId === receipt.id &&
-    row.payload?.requestFingerprint === receipt.details?.requestFingerprint &&
+    row.payload?.requestFingerprint === recordedRequestFingerprint &&
+    row.payload?.bindingDigest === recordedBindingDigest &&
+    row.payload?.policyDigest === recordedPolicyDigest &&
     row.payload?.executionAuthorized === true
   ) ?? null);
   if (receipt.details?.policyConfigured !== true || receipt.details?.executionAuthorized !== true ||
@@ -276,6 +314,81 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
     version: credentialVersion,
     expectedConfigPath: credentialConfigPath,
   });
+}
+
+export async function promoteRegiaExecutionPolicyApproval(
+  db: Db,
+  approval: typeof approvals.$inferSelect,
+) {
+  if (approval.type !== REGIA_POLICY_APPROVAL_TYPE) return;
+  const payload = approval.payload;
+  const issueId = typeof payload.issueId === "string" ? payload.issueId : null;
+  const receiptActivityId = typeof payload.receiptActivityId === "string" ? payload.receiptActivityId : null;
+  const requestFingerprintValue = payload.requestFingerprint;
+  const bindingDigest = payload.bindingDigest;
+  const policyDigest = payload.policyDigest;
+  if (!issueId || !receiptActivityId || !isSha256(requestFingerprintValue) ||
+    !isSha256(bindingDigest) || !isSha256(policyDigest) || payload.executionAuthorized !== true) {
+    throw new RegiaPolicyGateError("Regia execution approval payload is incomplete or invalid");
+  }
+
+  const [linkedIssue, receipt] = await Promise.all([
+    db.select({
+      id: issues.id,
+      projectId: issues.projectId,
+      projectWorkspaceId: issues.projectWorkspaceId,
+      assigneeAgentId: issues.assigneeAgentId,
+      originKind: issues.originKind,
+      reviewPolicy: issues.reviewPolicy,
+    }).from(issueApprovals).innerJoin(issues, eq(issueApprovals.issueId, issues.id)).where(and(
+      eq(issueApprovals.companyId, approval.companyId),
+      eq(issueApprovals.approvalId, approval.id),
+      eq(issueApprovals.issueId, issueId),
+      eq(issues.companyId, approval.companyId),
+    )).then((rows) => rows.length === 1 ? rows[0]! : null),
+    db.select({ id: activityLog.id, details: activityLog.details }).from(activityLog).where(and(
+      eq(activityLog.id, receiptActivityId),
+      eq(activityLog.companyId, approval.companyId),
+      eq(activityLog.action, INTAKE_ACTION),
+      eq(activityLog.entityType, "issue"),
+      eq(activityLog.entityId, issueId),
+    )).then((rows) => rows[0] ?? null),
+  ]);
+  const receiptBinding = receipt?.details?.binding;
+  if (!linkedIssue || linkedIssue.originKind !== "regia_intake" ||
+    linkedIssue.reviewPolicy !== "not_creator" || !linkedIssue.projectId ||
+    !linkedIssue.projectWorkspaceId || !linkedIssue.assigneeAgentId || !receipt ||
+    !receiptBinding || typeof receiptBinding !== "object" || Array.isArray(receiptBinding)) {
+    throw new RegiaPolicyGateError("Regia execution approval is not linked to one valid intake task and receipt");
+  }
+  const binding = receiptBinding as Record<string, unknown>;
+  const expected = executionPolicyDigests(requestFingerprintValue, binding);
+  if (receipt.details?.requestFingerprint !== requestFingerprintValue ||
+    receipt.details?.bindingDigest !== bindingDigest || receipt.details?.policyDigest !== policyDigest ||
+    expected.bindingDigest !== bindingDigest || expected.policyDigest !== policyDigest ||
+    binding.companyId !== approval.companyId || binding.projectId !== linkedIssue.projectId ||
+    binding.projectWorkspaceId !== linkedIssue.projectWorkspaceId) {
+    throw new RegiaPolicyGateError("Regia execution approval no longer matches the intake binding or policy digest");
+  }
+
+  const updated = await db.update(activityLog).set({
+    details: {
+      ...receipt.details,
+      policyConfigured: true,
+      executionAuthorized: true,
+      blockingGate: null,
+      policyApprovalId: approval.id,
+    },
+  }).where(and(
+    eq(activityLog.id, receipt.id),
+    eq(activityLog.companyId, approval.companyId),
+    sql`${activityLog.details} ->> 'requestFingerprint' = ${requestFingerprintValue}`,
+    sql`${activityLog.details} ->> 'bindingDigest' = ${bindingDigest}`,
+    sql`${activityLog.details} ->> 'policyDigest' = ${policyDigest}`,
+  )).returning({ id: activityLog.id });
+  if (updated.length !== 1) {
+    throw new RegiaPolicyGateError("Regia execution receipt changed while approval was being decided");
+  }
 }
 
 export function regiaIntakeService(db: Db) {
@@ -330,6 +443,20 @@ export function regiaIntakeService(db: Db) {
           recordedBinding?.credentialSecretId !== input.binding.credentialSecretRef.secretId) {
           throw conflict("Idempotency key was already used with a different Regia intake request");
         }
+        const linkedApprovals = await tx.select({
+          id: approvals.id,
+          status: approvals.status,
+        }).from(issueApprovals).innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id)).where(and(
+          eq(issueApprovals.companyId, companyId),
+          eq(issueApprovals.issueId, existing.issueId),
+          eq(approvals.companyId, companyId),
+          eq(approvals.type, REGIA_POLICY_APPROVAL_TYPE),
+        ));
+        if (linkedApprovals.length !== 1) {
+          throw conflict("Existing Regia intake has no unique execution policy approval");
+        }
+        const policyConfigured = receipt.details?.policyConfigured === true;
+        const executionAuthorized = receipt.details?.executionAuthorized === true;
         return {
           companyId,
           goalId: existing.goalId,
@@ -338,9 +465,11 @@ export function regiaIntakeService(db: Db) {
           regiaAgentId: existing.regiaAgentId,
           reviewPolicy: "not_creator",
           created: false,
-          executionAuthorized: false,
-          policyConfigured: false,
-          blockingGate: "policy_configuration_required",
+          executionAuthorized,
+          policyConfigured,
+          blockingGate: policyConfigured && executionAuthorized ? null : "policy_configuration_required",
+          approvalId: linkedApprovals[0]!.id,
+          approvalStatus: linkedApprovals[0]!.status as RegiaIntakeResponse["approvalStatus"],
           receipt: { kind: "intake", activityId: receipt.id, action: INTAKE_ACTION },
         };
       }
@@ -454,6 +583,16 @@ export function regiaIntakeService(db: Db) {
         idempotencyKey: input.idempotencyKey,
         issueId: rootTask!.id,
       });
+      const receiptBinding = {
+        companyId,
+        projectId: project.id,
+        projectWorkspaceId: workspace.id,
+        environmentId: environment.id,
+        credentialSecretId: input.binding.credentialSecretRef.secretId,
+        credentialVersion: input.binding.credentialSecretRef.version,
+        credentialConfigPath: credential.configPath,
+      };
+      const policyDigests = executionPolicyDigests(fingerprint, receiptBinding);
       const [receipt] = await tx.insert(activityLog).values({
         companyId,
         actorType: actor.actorType,
@@ -474,17 +613,33 @@ export function regiaIntakeService(db: Db) {
           executionAuthorized: false,
           blockingGate: "policy_configuration_required",
           requestFingerprint: fingerprint,
-          binding: {
-            companyId,
-            projectId: project.id,
-            projectWorkspaceId: workspace.id,
-            environmentId: environment.id,
-            credentialSecretId: input.binding.credentialSecretRef.secretId,
-            credentialVersion: input.binding.credentialSecretRef.version,
-            credentialConfigPath: credential.configPath,
-          },
+          ...policyDigests,
+          binding: receiptBinding,
         },
       }).returning({ id: activityLog.id });
+      const [approval] = await tx.insert(approvals).values({
+        companyId,
+        type: REGIA_POLICY_APPROVAL_TYPE,
+        requestedByUserId: actor.actorId,
+        requestedByAgentId: null,
+        status: "pending",
+        payload: {
+          issueId: rootTask!.id,
+          receiptActivityId: receipt!.id,
+          requestFingerprint: fingerprint,
+          ...policyDigests,
+          executionAuthorized: true,
+        },
+        decisionNote: null,
+        decidedByUserId: null,
+        decidedAt: null,
+      }).returning({ id: approvals.id, status: approvals.status });
+      await tx.insert(issueApprovals).values({
+        companyId,
+        issueId: rootTask!.id,
+        approvalId: approval!.id,
+        linkedByUserId: actor.actorId,
+      });
 
       return {
         companyId,
@@ -497,6 +652,8 @@ export function regiaIntakeService(db: Db) {
         executionAuthorized: false,
         policyConfigured: false,
         blockingGate: "policy_configuration_required",
+        approvalId: approval!.id,
+        approvalStatus: approval!.status as RegiaIntakeResponse["approvalStatus"],
         receipt: { kind: "intake", activityId: receipt!.id, action: INTAKE_ACTION },
       };
     }),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ApprovalStatus } from "../constants.js";
 
 const boundedText = (max: number) => z.string().trim().min(1).max(max);
 
@@ -45,8 +46,10 @@ export interface RegiaIntakeResponse {
   regiaAgentId: string;
   reviewPolicy: "not_creator";
   created: boolean;
-  executionAuthorized: false;
-  policyConfigured: false;
-  blockingGate: "policy_configuration_required";
+  executionAuthorized: boolean;
+  policyConfigured: boolean;
+  blockingGate: "policy_configuration_required" | null;
+  approvalId: string;
+  approvalStatus: ApprovalStatus;
   receipt: { kind: "intake"; activityId: string; action: "regia.intake.accepted" };
 }

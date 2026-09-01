@@ -47,6 +47,8 @@ describe("Regia intake route authorization and body contract", () => {
       executionAuthorized: false,
       policyConfigured: false,
       blockingGate: "policy_configuration_required",
+      approvalId: "77777777-7777-4777-8777-777777777777",
+      approvalStatus: "pending",
       receipt: { kind: "intake", activityId: "receipt", action: "regia.intake.accepted" },
     });
   });
@@ -63,6 +65,13 @@ describe("Regia intake route authorization and body contract", () => {
     });
     const response = await request(app).post(`/api/companies/${COMPANY_ID}/regia/intake`).send(validBody);
     expect(response.status).toBe(201);
+    expect(response.body).toEqual(expect.objectContaining({
+      approvalId: "77777777-7777-4777-8777-777777777777",
+      approvalStatus: "pending",
+      executionAuthorized: false,
+      policyConfigured: false,
+      blockingGate: "policy_configuration_required",
+    }));
     expect(accept).toHaveBeenCalledWith(
       COMPANY_ID,
       expect.objectContaining({ ...validBody, constraints: [], kpis: [], gates: [] }),
