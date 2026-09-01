@@ -106,7 +106,7 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   with `--noEmit` and with emitted output. The package wrapper still stops in
   the unchanged runner prerequisite because `cargo` is not installed.
 - UI production build: passed.
-- Final control-room hardening: 21 focused tests passed and 2 PostgreSQL
+- Final control-room hardening: 23 focused tests passed and 3 PostgreSQL
   integration tests passed in an isolated non-root container. Shared, server,
   and UI typechecks passed; the UI production build and all four design-token
   gates passed. These tests cover company-scoped cost mapping and one-shot
@@ -131,10 +131,14 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   comments, 9.329 ms for interactions, and 7.181 ms for heartbeat runs. The
   proof container was removed after the run; production data was not touched.
 - Polling uses the existing cross-tab leader/cache coordinator, pauses in hidden
-  tabs, slows when unfocused, and retries twice with bounded exponential backoff.
-- Design token gate: the changed UI has zero candidate findings. The repository-wide
-  command remains red because the base commit already contains 16 findings in
-  `ui/src/pages/TeamCatalog.tsx` (6 color, 9 arbitrary-value, 1 raw-font-size).
+  tabs, slows when unfocused, and retries non-authorization errors twice with
+  bounded exponential backoff. A 401/403 disables interval polling; successful
+  access recovery performs exactly one explicit session-query refetch, and a
+  persistent denial remains stopped until the operator selects `Riprova`.
+- Cost rows are selected only for the already bounded, visible agent IDs. This
+  keeps company scope and the 500-row bound aligned even when agent status and
+  runtime-state orderings differ at the boundary.
+- Design token gate: all four repository-wide gates pass for the final candidate.
 
 ## Canary plan
 

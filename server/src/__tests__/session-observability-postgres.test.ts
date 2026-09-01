@@ -149,6 +149,65 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
     });
   });
 
+  it("maps costs to the exact bounded visible-agent set when more than 500 agents exist", async () => {
+    const companyId = randomUUID();
+    const targetAgentId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const targetCostCents = 654_321;
+    const idleAgentIds = Array.from({ length: 500 }, (_, index) => (
+      `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, "0")}`
+    ));
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Cost Boundary Company",
+      issuePrefix: `CB${randomUUID().slice(0, 5).toUpperCase()}`,
+    });
+    await db.insert(agents).values([
+      {
+        id: targetAgentId,
+        companyId,
+        name: "Visible active boundary agent",
+        role: "engineer",
+        status: "active",
+      },
+      ...idleAgentIds.map((id, index) => ({
+        id,
+        companyId,
+        name: `Idle boundary agent ${index + 1}`,
+        role: "engineer",
+        status: "idle",
+      })),
+    ]);
+    await db.insert(agentRuntimeState).values([
+      {
+        agentId: targetAgentId,
+        companyId,
+        adapterType: "process",
+        totalCostCents: targetCostCents,
+      },
+      ...idleAgentIds.map((agentId, index) => ({
+        agentId,
+        companyId,
+        adapterType: "process",
+        totalCostCents: index + 1,
+      })),
+    ]);
+
+    const result = await sessionObservabilityService(db).read(companyId);
+
+    expect(result.nodes).toHaveLength(500);
+    expect(result.nodes.find((node) => node.agent.id === targetAgentId)?.cost).toEqual({
+      totalCostCents: targetCostCents,
+    });
+    expect(result.nodes.some((node) => node.agent.id === idleAgentIds[499])).toBe(false);
+    for (const node of result.nodes) {
+      const expectedCost = node.agent.id === targetAgentId
+        ? targetCostCents
+        : idleAgentIds.indexOf(node.agent.id) + 1;
+      expect(node.cost.totalCostCents).toBe(expectedCost);
+    }
+  });
+
   it("returns bounded historical event, handoff, receipt, and non-terminal task states", async () => {
     const companyId = randomUUID();
     const authorAgentId = randomUUID();

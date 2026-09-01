@@ -1,6 +1,6 @@
 import { getPageVisibility, getVisibilityHeaderValue } from "@/lib/page-visibility";
 import { queryKeys } from "@/lib/queryKeys";
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 const BASE = "/api";
 
@@ -52,7 +52,11 @@ export function shouldStartAutomaticAccessRecovery(
  */
 export async function recoverAccessQueries(
   queryClient: Pick<QueryClient, "invalidateQueries">,
-  input: { status: RecoverableAccessStatus; companyId?: string | null },
+  input: {
+    status: RecoverableAccessStatus;
+    companyId?: string | null;
+    explicitRefetchQueryKey?: QueryKey;
+  },
 ): Promise<void> {
   await queryClient.invalidateQueries({
     queryKey: queryKeys.auth.session,
@@ -70,8 +74,19 @@ export async function recoverAccessQueries(
   const companyId = input.companyId?.trim();
   if (input.status !== 403 || !companyId) return;
 
+  const explicitRefetchKey = input.explicitRefetchQueryKey;
+  if (explicitRefetchKey) {
+    await queryClient.invalidateQueries({
+      queryKey: explicitRefetchKey,
+      exact: true,
+      refetchType: "none",
+    });
+  }
+
   await queryClient.invalidateQueries({
-    predicate: (query) => query.queryKey.some((part) => part === companyId),
+    predicate: (query) => query.queryKey.some((part) => part === companyId)
+      && (!explicitRefetchKey
+        || JSON.stringify(query.queryKey) !== JSON.stringify(explicitRefetchKey)),
     refetchType: "active",
   });
 }

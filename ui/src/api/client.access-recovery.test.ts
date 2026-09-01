@@ -63,4 +63,24 @@ describe("access recovery", () => {
     expect(fourthCall?.predicate?.({ queryKey: ["dashboard", "company-1"] } as never)).toBe(true);
     expect(fourthCall?.predicate?.({ queryKey: ["dashboard", "company-2"] } as never)).toBe(false);
   });
+
+  it("defers one company query to its caller for an explicit single refetch", async () => {
+    const client = recoveryClient();
+    const explicitRefetchQueryKey = queryKeys.agents.sessionObservability("company-1");
+    await recoverAccessQueries(client, {
+      status: 403,
+      companyId: "company-1",
+      explicitRefetchQueryKey,
+    });
+
+    expect(client.invalidateQueries).toHaveBeenCalledTimes(5);
+    expect(client.invalidateQueries).toHaveBeenNthCalledWith(4, {
+      queryKey: explicitRefetchQueryKey,
+      exact: true,
+      refetchType: "none",
+    });
+    const fifthCall = vi.mocked(client.invalidateQueries).mock.calls[4]?.[0];
+    expect(fifthCall?.predicate?.({ queryKey: explicitRefetchQueryKey } as never)).toBe(false);
+    expect(fifthCall?.predicate?.({ queryKey: ["dashboard", "company-1"] } as never)).toBe(true);
+  });
 });
