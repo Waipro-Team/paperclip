@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
+  agentRuntimeState,
   agentWakeupRequests,
   agents,
   builtInManagedResources,
@@ -13,6 +14,8 @@ import {
   environments,
   environmentLeases,
   goals,
+  heartbeatRunEvents,
+  heartbeatRuns,
   issueCreateIdempotencyKeys,
   issues,
   projectGoals,
@@ -22,6 +25,7 @@ import {
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { assertRegiaIntakeExecutionBinding, regiaIntakeService } from "../services/regia-intake.js";
+import { heartbeatService } from "../services/heartbeat.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const describePg = support.supported ? describe : describe.skip;
@@ -44,9 +48,12 @@ describePg("regiaIntakeService", () => {
   }, 90_000);
 
   afterEach(async () => {
+    await db.delete(heartbeatRunEvents);
     await db.delete(activityLog);
-    await db.delete(agentWakeupRequests);
     await db.delete(environmentLeases);
+    await db.delete(heartbeatRuns);
+    await db.delete(agentWakeupRequests);
+    await db.delete(agentRuntimeState);
     await db.delete(issueCreateIdempotencyKeys);
     await db.delete(issues);
     await db.delete(projectGoals);
@@ -415,5 +422,50 @@ describePg("regiaIntakeService", () => {
       .rejects.toThrow("unbound, ambiguous, or cross-company");
     expect(await db.select().from(environmentLeases)).toHaveLength(0);
     expect(await db.select().from(agentWakeupRequests)).toHaveLength(0);
+  });
+
+  it("fails a real heartbeat before blocked-task checkout and creates no recovery execution", async () => {
+    await seed();
+    const intake = await regiaIntakeService(db).accept(COMPANY_A, {
+      ...request,
+      idempotencyKey: "board:heartbeat-preflight:001",
+    }, { actorType: "user", actorId: "cristian" });
+    await db.update(companySecretBindings).set({ configPath: "credentials.regia.drifted" })
+      .where(and(
+        eq(companySecretBindings.secretId, SECRET_ID),
+        eq(companySecretBindings.targetId, ENVIRONMENT_ID),
+      ));
+
+    const acquireRunLease = vi.fn();
+    const executeProvider = vi.fn();
+    const heartbeat = heartbeatService(db, {
+      runtimeEnv: {},
+      environmentRuntime: {
+        acquireRunLease,
+        execute: executeProvider,
+        releaseRunLeases: vi.fn().mockResolvedValue([]),
+      } as never,
+    });
+    const initialRun = await heartbeat.invoke(REGIA_ID, "on_demand", {
+      issueId: intake.rootTaskId,
+      taskId: intake.rootTaskId,
+    }, "manual", { actorType: "user", actorId: "cristian" });
+    expect(initialRun).not.toBeNull();
+    await heartbeat.drainActiveRunExecutions();
+
+    const [task] = await db.select({
+      status: issues.status,
+      executionRunId: issues.executionRunId,
+    }).from(issues).where(eq(issues.id, intake.rootTaskId));
+    const runs = await db.select().from(heartbeatRuns);
+    const wakes = await db.select().from(agentWakeupRequests);
+    expect(task).toEqual({ status: "blocked", executionRunId: null });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ id: initialRun!.id, status: "failed", retryOfRunId: null });
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]).toMatchObject({ runId: initialRun!.id, status: "failed" });
+    expect(await db.select().from(environmentLeases)).toHaveLength(0);
+    expect(acquireRunLease).not.toHaveBeenCalled();
+    expect(executeProvider).not.toHaveBeenCalled();
   });
 });

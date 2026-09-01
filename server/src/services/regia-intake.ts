@@ -150,7 +150,7 @@ async function assertEnvironmentCredentialRef(db: Db, input: {
 export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
   companyId: string;
   issueId: string;
-  selectedEnvironmentId: string;
+  selectedEnvironmentId?: string;
   assertCompanyBinding?: boolean;
 }) {
   if (input.assertCompanyBinding !== true) {
@@ -180,9 +180,11 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
   const credentialConfigPath = typeof binding?.credentialConfigPath === "string"
     ? binding.credentialConfigPath
     : null;
+  const receiptEnvironmentId = typeof binding?.environmentId === "string" ? binding.environmentId : null;
+  const selectedEnvironmentId = input.selectedEnvironmentId ?? receiptEnvironmentId;
   if (!receipt || binding?.companyId !== input.companyId || binding?.projectId !== issue.projectId ||
-    binding?.projectWorkspaceId !== issue.projectWorkspaceId || binding?.environmentId !== input.selectedEnvironmentId ||
-    !credentialSecretId || !credentialConfigPath ||
+    binding?.projectWorkspaceId !== issue.projectWorkspaceId || !selectedEnvironmentId ||
+    receiptEnvironmentId !== selectedEnvironmentId || !credentialSecretId || !credentialConfigPath ||
     (credentialVersion !== "latest" &&
       (typeof credentialVersion !== "number" || !Number.isInteger(credentialVersion) || credentialVersion < 1))) {
     throw unprocessable("Regia intake execution receipt binding is missing or mismatched");
@@ -198,13 +200,13 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
       eq(projectWorkspaces.projectId, issue.projectId),
     )).then((rows) => rows[0] ?? null),
     db.select({ id: environments.id, driver: environments.driver, status: environments.status }).from(environments)
-      .where(eq(environments.id, input.selectedEnvironmentId)).then((rows) => rows[0] ?? null),
+      .where(eq(environments.id, selectedEnvironmentId)).then((rows) => rows[0] ?? null),
     db.select({ defaultEnvironmentId: agents.defaultEnvironmentId }).from(agents).where(and(
       eq(agents.id, issue.assigneeAgentId), eq(agents.companyId, input.companyId),
     )).then((rows) => rows[0] ?? null),
     db.select({ companyId: builtInManagedResources.companyId }).from(builtInManagedResources).where(and(
       eq(builtInManagedResources.resourceKind, "environment"),
-      eq(builtInManagedResources.resourceId, input.selectedEnvironmentId),
+      eq(builtInManagedResources.resourceId, selectedEnvironmentId),
     )),
   ]);
   const boundCompanies = [...new Set(environmentBindings.map((row) => row.companyId))];
@@ -216,7 +218,7 @@ export async function assertRegiaIntakeExecutionBinding(db: Db, input: {
   }
   await assertEnvironmentCredentialRef(db, {
     companyId: input.companyId,
-    environmentId: input.selectedEnvironmentId,
+    environmentId: selectedEnvironmentId,
     secretId: credentialSecretId,
     version: credentialVersion,
     expectedConfigPath: credentialConfigPath,

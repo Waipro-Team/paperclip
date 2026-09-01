@@ -6941,13 +6941,13 @@ export async function enforceRegiaIntakeHeartbeatExecutionBinding(
   } = {},
 ): Promise<boolean> {
   if (input.originKind !== "regia_intake") return false;
-  if (!input.issueId || !input.selectedEnvironmentId) {
-    throw new Error("Regia intake execution requires an issue and selected environment");
+  if (!input.issueId) {
+    throw new Error("Regia intake execution requires an issue");
   }
   await (dependencies.assertBinding ?? assertRegiaIntakeExecutionBinding)(db, {
     companyId: input.companyId,
     issueId: input.issueId,
-    selectedEnvironmentId: input.selectedEnvironmentId,
+    ...(input.selectedEnvironmentId ? { selectedEnvironmentId: input.selectedEnvironmentId } : {}),
     assertCompanyBinding: true,
   });
   return true;
@@ -14556,6 +14556,16 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     const sessionCodec = getAdapterSessionCodec(agent.adapterType);
     const issueId = readNonEmptyString(context.issueId);
     let issueContext = issueId ? await getIssueExecutionContext(agent.companyId, issueId) : null;
+    // Regia intake tasks are fail-closed before auto-checkout mutates a blocked
+    // issue. The receipt's pinned environment is authoritative for this early
+    // pass; the final resolved environment is checked again immediately before
+    // lease acquisition below.
+    const isRegiaIntakeExecution = await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
+      companyId: agent.companyId,
+      originKind: issueContext?.originKind,
+      issueId,
+      selectedEnvironmentId: null,
+    });
     const issueDependencyReadiness = issueId
       ? await issuesSvc.listDependencyReadiness(agent.companyId, [issueId]).then((rows) => rows.get(issueId) ?? null)
       : null;
@@ -15041,12 +15051,14 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       : selectedEnvironmentId
         ? await environmentsSvc.getById(selectedEnvironmentId)
         : null;
-    const isRegiaIntakeExecution = await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
-      companyId: agent.companyId,
-      originKind: issueContext?.originKind,
-      issueId,
-      selectedEnvironmentId,
-    });
+    if (isRegiaIntakeExecution) {
+      await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
+        companyId: agent.companyId,
+        originKind: issueContext?.originKind,
+        issueId,
+        selectedEnvironmentId,
+      });
+    }
     const sharedWorkspaceConcurrency = resolveSharedWorkspaceConcurrency({
       projectPolicy: projectExecutionWorkspacePolicy,
       issueSettings: issueExecutionWorkspaceSettings,
