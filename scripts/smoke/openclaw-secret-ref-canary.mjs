@@ -1,16 +1,27 @@
 #!/usr/bin/env node
 
 import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
-const RECEIPT_SCHEMA_VERSION = 2;
+const RECEIPT_SCHEMA_VERSION = 3;
 const DEFAULT_API_BASE = "http://127.0.0.1:3100";
 const DEFAULT_AUTH_STORE = "/var/lib/portal360/paperclip/cli/auth.json";
 const DEFAULT_OPENCLAW_CONFIG = "/home/claw360/.openclaw/openclaw.json";
 const DEFAULT_EXPECTED_COMMIT = "542cfbba0d78440f153ae1e11285170825ed4a8d";
 const REDACTED_SENTINEL = "***REDACTED***";
 const APPLY_KILL_SWITCH_ENV = "PAPERCLIP_OPENCLAW_SECRET_REF_CANARY_ENABLED";
+const CANARY_SECRET_KEY_PREFIX = "openclaw-gateway-canary-";
+const RECOVERABLE_RECEIPT_STATUSES = new Set([
+  "applying",
+  "secret_creation_pending",
+  "secret_created",
+  "apply_failed",
+  "rollback_failed",
+  "recovery_started",
+]);
 const LEGACY_AUTH_HEADERS = new Set(["authorization", "x-openclaw-token", "x-openclaw-auth"]);
 const FORBIDDEN_RECEIPT_HEADERS = new Set([
   ...LEGACY_AUTH_HEADERS,
@@ -44,8 +55,8 @@ The script never prints or stores the OpenClaw gateway token or Paperclip board 
 Apply is disabled unless ${APPLY_KILL_SWITCH_ENV}=true and exactly one of
 --canary-only or --promote-fleet is supplied. Every probe must use the active,
 platform-managed sandbox selected by --environment-id. Rollback restores adapter
-configs but intentionally retains the newly created encrypted secret; receipts
-therefore never describe that outcome as a full-state rollback.`;
+configs and deletes only the encrypted secret whose unique run id was journaled
+before creation. An interrupted apply is recovered idempotently on the next run.`;
 }
 
 function parseArgs(argv) {
@@ -170,6 +181,49 @@ export function assertReceiptSafeAdapterConfig(config, label = "adapterConfig") 
     }
   };
   visit(config, label);
+}
+
+function canarySecretKey(canaryRunId) {
+  return `${CANARY_SECRET_KEY_PREFIX}${canaryRunId}`;
+}
+
+function canarySecretName(canaryRunId) {
+  return `OpenClaw gateway canary ${canaryRunId}`;
+}
+
+function canarySecretDescription(canaryRunId) {
+  return `Paperclip OpenClaw canary ${canaryRunId}; safe to delete only through its journaled rollback.`;
+}
+
+function assertCanaryJournal(receipt, expectedCompanyId = null) {
+  if (receipt?.schemaVersion !== RECEIPT_SCHEMA_VERSION) {
+    throw new Error("Unsupported receipt schema");
+  }
+  if (expectedCompanyId && receipt.companyId !== expectedCompanyId) {
+    throw new Error("Receipt company does not match the requested company");
+  }
+  if (
+    typeof receipt.canaryRunId !== "string"
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(receipt.canaryRunId)
+  ) {
+    throw new Error("Receipt has no valid canary run id");
+  }
+  if (receipt.plannedSecretKey !== canarySecretKey(receipt.canaryRunId)) {
+    throw new Error("Receipt canary secret key does not match its run id");
+  }
+  if (
+    receipt.rollbackPolicy?.adapterConfigs !== "restore_exact_previous_config"
+    || receipt.rollbackPolicy?.createdEncryptedSecret !== "delete_exact_canary_secret"
+    || receipt.rollbackPolicy?.fullStateRollback !== true
+  ) {
+    throw new Error("Unsupported or ambiguous receipt rollback policy");
+  }
+  for (const target of receipt.targets ?? []) {
+    assertReceiptSafeAdapterConfig(
+      target.previousAdapterConfig ?? {},
+      `targets[${target.id ?? "unknown"}].previousAdapterConfig`,
+    );
+  }
 }
 
 function publicAgentSnapshot(agent) {
@@ -346,12 +400,7 @@ async function runAdapterSmoke(api, companyId, environmentId, config) {
 
 async function restoreAppliedTargets(api, receipt) {
   const errors = [];
-  for (const target of receipt.targets) {
-    assertReceiptSafeAdapterConfig(
-      target.previousAdapterConfig ?? {},
-      `targets[${target.id ?? "unknown"}].previousAdapterConfig`,
-    );
-  }
+  assertCanaryJournal(receipt);
   for (const target of [...receipt.targets].reverse()) {
     const mayHaveMutated = target.applied
       || ["binding_pending", "bound", "rollback_failed"].includes(target.mutationState);
@@ -361,7 +410,11 @@ async function restoreAppliedTargets(api, receipt) {
         replaceAdapterConfig: true,
         adapterConfig: target.previousAdapterConfig,
       });
-      assertReceiptSafeAdapterConfig(restored?.adapterConfig ?? {});
+      const restoredConfig = restored?.adapterConfig ?? {};
+      assertReceiptSafeAdapterConfig(restoredConfig);
+      if (!isDeepStrictEqual(restoredConfig, target.previousAdapterConfig)) {
+        throw new Error(`Agent ${target.id} did not restore its exact previous adapter config`);
+      }
       target.applied = false;
       target.mutationState = "rolled_back";
       appendEvent(receipt, "agent_rolled_back", { agentId: target.id });
@@ -370,9 +423,93 @@ async function restoreAppliedTargets(api, receipt) {
       errors.push({ agentId: target.id, error: error instanceof Error ? error.message : "unknown rollback error" });
     }
   }
-  receipt.retainedSecretId = receipt.createdSecretId ?? null;
-  receipt.createdSecretId = receipt.createdSecretId ?? null;
   return errors;
+}
+
+async function listCanarySecretMatches(api, receipt) {
+  assertCanaryJournal(receipt);
+  const catalog = await api("GET", `/companies/${receipt.companyId}/secrets`);
+  const rows = Array.isArray(catalog) ? catalog : [];
+  return rows.filter((secret) =>
+    secret?.key === receipt.plannedSecretKey
+    && secret?.name === canarySecretName(receipt.canaryRunId)
+    && secret?.description === canarySecretDescription(receipt.canaryRunId)
+    && secret?.provider === "local_encrypted"
+    && secret?.status !== "deleted"
+  );
+}
+
+async function recoverCreatedSecretId(api, receipt) {
+  const matches = await listCanarySecretMatches(api, receipt);
+  if (matches.length > 1) {
+    throw new Error("Multiple active secrets match the exact canary journal");
+  }
+  if (receipt.createdSecretId) {
+    if (matches.length === 0) return null;
+    if (matches[0]?.id !== receipt.createdSecretId) {
+      throw new Error("Canary secret id does not match the exact journal key and name");
+    }
+    return receipt.createdSecretId;
+  }
+  if (matches.length === 0) return null;
+  receipt.createdSecretId = matches[0].id;
+  receipt.secretLifecycle = "recovered_from_journal";
+  appendEvent(receipt, "canary_secret_recovered", { secretId: receipt.createdSecretId });
+  return receipt.createdSecretId;
+}
+
+async function deleteCanarySecret(api, receipt, writeReceiptImpl, receiptPath) {
+  const secretId = await recoverCreatedSecretId(api, receipt);
+  if (!secretId) {
+    receipt.deletedSecretId = receipt.deletedSecretId ?? receipt.createdSecretId ?? null;
+    receipt.createdSecretId = null;
+    receipt.secretLifecycle = "absent";
+    appendEvent(receipt, "canary_secret_absent");
+    await writeReceiptImpl(receiptPath, receipt);
+    return;
+  }
+  receipt.secretLifecycle = "deletion_pending";
+  appendEvent(receipt, "canary_secret_deletion_started", { secretId });
+  await writeReceiptImpl(receiptPath, receipt);
+  await api("DELETE", `/secrets/${secretId}`);
+  const remaining = await listCanarySecretMatches(api, receipt);
+  if (remaining.length !== 0) {
+    throw new Error("Canary secret still exists after deletion");
+  }
+  receipt.secretLifecycle = "deleted";
+  receipt.deletedSecretId = secretId;
+  receipt.createdSecretId = null;
+  appendEvent(receipt, "canary_secret_deleted", { secretId });
+  await writeReceiptImpl(receiptPath, receipt);
+}
+
+async function restoreFullCanaryState(api, receipt, writeReceiptImpl, receiptPath) {
+  assertCanaryJournal(receipt);
+  const rollbackErrors = await restoreAppliedTargets(api, receipt);
+  if (rollbackErrors.length > 0) {
+    receipt.status = "rollback_failed";
+    receipt.rollbackErrors = rollbackErrors;
+    appendEvent(receipt, "rollback_failed");
+    await writeReceiptImpl(receiptPath, receipt);
+    return rollbackErrors;
+  }
+  try {
+    await deleteCanarySecret(api, receipt, writeReceiptImpl, receiptPath);
+  } catch (error) {
+    receipt.status = "rollback_failed";
+    receipt.rollbackErrors = [{
+      secretId: receipt.createdSecretId ?? null,
+      error: error instanceof Error ? error.message : "unknown secret deletion error",
+    }];
+    appendEvent(receipt, "rollback_failed");
+    await writeReceiptImpl(receiptPath, receipt);
+    return receipt.rollbackErrors;
+  }
+  receipt.status = "full_state_rolled_back";
+  delete receipt.rollbackErrors;
+  appendEvent(receipt, "full_state_rolled_back");
+  await writeReceiptImpl(receiptPath, receipt);
+  return [];
 }
 
 async function preflight(options, dependencies = {}) {
@@ -389,6 +526,7 @@ async function preflight(options, dependencies = {}) {
   );
   const sourceToken = await (dependencies.loadSourceToken ?? loadSourceToken)(options.openclawConfig);
   const now = new Date().toISOString();
+  const canaryRunId = dependencies.randomUUID?.() ?? randomUUID();
   const receipt = {
     schemaVersion: RECEIPT_SCHEMA_VERSION,
     status: "preflight_pass",
@@ -405,19 +543,61 @@ async function preflight(options, dependencies = {}) {
     fleetAgentIds: options.fleetAgentIds,
     sourceConfigPath: options.openclawConfig,
     sourceCredentialPresent: true,
-    plannedSecretKey: null,
+    canaryRunId,
+    plannedSecretKey: canarySecretKey(canaryRunId),
     createdSecretId: null,
-    retainedSecretId: null,
+    deletedSecretId: null,
+    secretLifecycle: "planned",
     rollbackPolicy: {
       adapterConfigs: "restore_exact_previous_config",
-      createdEncryptedSecret: "retain_for_recoverability",
-      fullStateRollback: false,
+      createdEncryptedSecret: "delete_exact_canary_secret",
+      fullStateRollback: true,
     },
     targets,
     events: [{ at: now, event: "preflight_pass" }],
   };
+  assertCanaryJournal(receipt, options.companyId);
   await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
   return { api, sourceToken, receipt };
+}
+
+async function readOptionalReceipt(receiptPath, readReceiptImpl = readJson) {
+  try {
+    return await readReceiptImpl(receiptPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+async function recoverInterruptedApply(options, dependencies = {}) {
+  const prior = await readOptionalReceipt(options.receipt, dependencies.readReceipt ?? readJson);
+  if (prior === undefined) return null;
+  assertCanaryJournal(prior, options.companyId);
+  if (prior.status === "preflight_pass" && !prior.createdSecretId) return null;
+  if (prior.status === "full_state_rolled_back") return null;
+  if (["canary_pass", "fleet_pass", "verified"].includes(prior.status)) {
+    throw new Error("Receipt describes a completed binding; rollback it before starting another apply");
+  }
+  if (!RECOVERABLE_RECEIPT_STATUSES.has(prior.status)) {
+    throw new Error(`Receipt status ${prior.status ?? "missing"} is not recoverable`);
+  }
+  const boardToken = await (dependencies.loadBoardToken ?? loadBoardToken)(options.authStore, options.apiBase);
+  const api = dependencies.api ?? makeApi(options.apiBase, boardToken, dependencies.fetchImpl);
+  prior.observedHealth = await checkHealth(api, prior.expectedCommit, false);
+  prior.status = "recovery_started";
+  appendEvent(prior, "interrupted_apply_recovery_started");
+  const writeReceiptImpl = dependencies.writeReceipt ?? writeReceipt;
+  await writeReceiptImpl(options.receipt, prior);
+  const errors = await restoreFullCanaryState(api, prior, writeReceiptImpl, options.receipt);
+  if (errors.length > 0) {
+    throw new Error(`Interrupted apply recovery failed for ${errors.length} item(s)`);
+  }
+  return {
+    canaryRunId: prior.canaryRunId,
+    deletedSecretId: prior.deletedSecretId ?? null,
+    status: prior.status,
+  };
 }
 
 async function apply(options, dependencies = {}) {
@@ -426,26 +606,31 @@ async function apply(options, dependencies = {}) {
   if (!mutationKillSwitch) {
     throw new Error(`apply is disabled; set ${APPLY_KILL_SWITCH_ENV}=true to open the mutation gate`);
   }
+  const recoveredPriorRun = await recoverInterruptedApply(options, dependencies);
   const state = await preflight(options, dependencies);
   const { api, sourceToken, receipt } = state;
+  receipt.recoveredPriorRun = recoveredPriorRun;
   receipt.executionMode = options.canaryOnly ? "canary_only" : "fleet_promotion";
   receipt.status = "applying";
   appendEvent(receipt, "apply_started");
   await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
 
   try {
-    receipt.plannedSecretKey = `openclaw-gateway-${Date.now()}`;
+    receipt.status = "secret_creation_pending";
+    receipt.secretLifecycle = "creation_pending";
     appendEvent(receipt, "encrypted_secret_creation_started");
     await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
     const created = await api("POST", `/companies/${receipt.companyId}/secrets`, {
-      name: `OpenClaw gateway token ${new Date().toISOString()}`,
+      name: canarySecretName(receipt.canaryRunId),
       key: receipt.plannedSecretKey,
       provider: "local_encrypted",
       value: sourceToken,
-      description: "Paperclip OpenClaw gateway fleet binding; source value is never persisted in agent config.",
+      description: canarySecretDescription(receipt.canaryRunId),
     });
     if (!created?.id) throw new Error("Secret creation returned no id");
     receipt.createdSecretId = created.id;
+    receipt.secretLifecycle = "created";
+    receipt.status = "secret_created";
     appendEvent(receipt, "encrypted_secret_created");
     await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
 
@@ -495,27 +680,20 @@ async function apply(options, dependencies = {}) {
     return receipt;
   } catch (error) {
     appendEvent(receipt, "apply_failed", { error: error instanceof Error ? error.message : "unknown apply error" });
-    const rollbackErrors = await restoreAppliedTargets(api, receipt);
-    receipt.status = rollbackErrors.length === 0
-      ? "adapter_configs_restored_secret_retained"
-      : "rollback_failed";
-    if (rollbackErrors.length > 0) receipt.rollbackErrors = rollbackErrors;
-    appendEvent(receipt, receipt.status);
-    await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
+    receipt.status = "apply_failed";
+    await restoreFullCanaryState(
+      api,
+      receipt,
+      dependencies.writeReceipt ?? writeReceipt,
+      options.receipt,
+    );
     throw new Error(`${error instanceof Error ? error.message : "Apply failed"}; automatic rollback=${receipt.status}`);
   }
 }
 
 async function loadReceiptOptions(options, readReceipt = readJson) {
   const receipt = await readReceipt(options.receipt);
-  if (receipt?.schemaVersion !== RECEIPT_SCHEMA_VERSION) throw new Error("Unsupported receipt schema");
-  if (
-    receipt.rollbackPolicy?.adapterConfigs !== "restore_exact_previous_config"
-    || receipt.rollbackPolicy?.createdEncryptedSecret !== "retain_for_recoverability"
-    || receipt.rollbackPolicy?.fullStateRollback !== false
-  ) {
-    throw new Error("Unsupported or ambiguous receipt rollback policy");
-  }
+  assertCanaryJournal(receipt);
   options.apiBase = normalizeApiBase(receipt.apiBase ?? options.apiBase);
   options.expectedCommit = receipt.expectedCommit ?? options.expectedCommit;
   options.companyId = receipt.companyId;
@@ -537,6 +715,11 @@ async function verify(options, dependencies = {}) {
     receipt.environmentId,
   );
   if (!receipt.createdSecretId) throw new Error("Receipt has no created secret id");
+  const journaledSecretId = receipt.createdSecretId;
+  const activeSecretId = await recoverCreatedSecretId(api, receipt);
+  if (activeSecretId !== journaledSecretId) {
+    throw new Error("Receipt canary secret is not active with its exact journal metadata");
+  }
   const usage = await api("GET", `/secrets/${receipt.createdSecretId}/usage`);
   const bindings = Array.isArray(usage?.bindings) ? usage.bindings : [];
   const boundTargets = receipt.targets.filter((target) => target.applied || target.mutationState === "bound");
@@ -575,16 +758,13 @@ async function rollback(options, dependencies = {}) {
   const boardToken = await (dependencies.loadBoardToken ?? loadBoardToken)(options.authStore, options.apiBase);
   const api = dependencies.api ?? makeApi(options.apiBase, boardToken, dependencies.fetchImpl);
   receipt.observedHealth = await checkHealth(api, options.expectedCommit, options.allowCommitDrift);
-  const errors = await restoreAppliedTargets(api, receipt);
-  receipt.status = errors.length === 0
-    ? receipt.createdSecretId
-      ? "adapter_configs_restored_secret_retained"
-      : "adapter_configs_restored"
-    : "rollback_failed";
-  if (errors.length > 0) receipt.rollbackErrors = errors;
-  appendEvent(receipt, receipt.status);
-  await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
-  if (errors.length > 0) throw new Error(`Rollback failed for ${errors.length} agent(s)`);
+  const errors = await restoreFullCanaryState(
+    api,
+    receipt,
+    dependencies.writeReceipt ?? writeReceipt,
+    options.receipt,
+  );
+  if (errors.length > 0) throw new Error(`Rollback failed for ${errors.length} item(s)`);
   return receipt;
 }
 
@@ -608,9 +788,9 @@ export async function run(argv, dependencies = {}) {
     canaryAgentId: receipt.canaryAgentId,
     agentCount: receipt.targets.length,
     observedCommit: receipt.observedHealth?.commit ?? null,
-    retainedSecretOnRollback:
-      receipt.status === "adapter_configs_restored_secret_retained"
-      && Boolean(receipt.retainedSecretId),
+    deletedCanarySecretOnRollback:
+      receipt.status === "full_state_rolled_back"
+      && Boolean(receipt.deletedSecretId),
     fullStateRollback: receipt.rollbackPolicy?.fullStateRollback ?? null,
   }));
   return receipt;
