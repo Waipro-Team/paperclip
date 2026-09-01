@@ -19,6 +19,7 @@ import {
   githubProjectItemIdDigest,
   githubProjectReconciliationRequestSchema,
   githubProjectReconciliationService,
+  type GithubProjectManifestPin,
   type GithubProjectImportRequest,
 } from "../services/github-project-reconciliation.js";
 
@@ -64,6 +65,12 @@ const syntheticItems = [
     canonicalUrl: "https://github.com/Repair360/portal360-staging/pull/303",
   },
 ];
+
+const syntheticManifestPin: GithubProjectManifestPin = {
+  itemCount: syntheticItems.length,
+  itemIdDigest: githubProjectItemIdDigest(syntheticItems.map((item) => item.projectItemId)),
+  statusCounts: { todo: 1, inProgress: 1, done: 1 },
+};
 
 function requestFor(mode: GithubProjectImportRequest["mode"]): GithubProjectImportRequest {
   return {
@@ -127,9 +134,22 @@ describeEmbeddedPostgres("githubProjectReconciliationService", () => {
     );
   }
 
+  function syntheticService() {
+    return githubProjectReconciliationService(db, { manifestPin: syntheticManifestPin });
+  }
+
+  it("rejects a self-declared manifest that is not the pinned real Project #1 snapshot", async () => {
+    await seedCompany();
+    await expect(githubProjectReconciliationService(db).reconcile(COMPANY_ID, requestFor("dry_run"), actor))
+      .rejects.toThrow("does not match the pinned Project #1 snapshot");
+    expect(await db.select().from(projects)).toHaveLength(0);
+    expect(await db.select().from(externalObjects)).toHaveLength(0);
+    expect(await db.select().from(issues)).toHaveLength(8);
+  });
+
   it("dry-runs, canaries with rollback, imports losslessly, and leaves the second run unchanged", async () => {
     await seedCompany();
-    const service = githubProjectReconciliationService(db);
+    const service = syntheticService();
 
     const preview = await service.reconcile(COMPANY_ID, requestFor("dry_run"), actor);
     expect(preview).toMatchObject({
@@ -194,7 +214,7 @@ describeEmbeddedPostgres("githubProjectReconciliationService", () => {
       const { assigneeAgentId: _removed, ...withoutOwner } = item;
       return withoutOwner;
     });
-    await expect(githubProjectReconciliationService(db).reconcile(COMPANY_ID, request, actor))
+    await expect(syntheticService().reconcile(COMPANY_ID, request, actor))
       .rejects.toThrow("require an explicit COR agent mapping");
     expect(await db.select().from(projects)).toHaveLength(0);
     expect(await db.select().from(externalObjects)).toHaveLength(0);
@@ -211,17 +231,41 @@ describeEmbeddedPostgres("githubProjectReconciliationService", () => {
       expectedStatusCounts: { todo: 1, inProgress: 0, done: 0 },
     })).toThrow();
 
-    const service = githubProjectReconciliationService(db);
+    const service = syntheticService();
     await service.reconcile(COMPANY_ID, requestFor("apply"), actor);
+    await db.insert(issues).values({
+      companyId: COMPANY_ID,
+      title: "Orphaned GitHub Project V2 issue",
+      status: "todo",
+      originKind: GITHUB_PROJECT_V2_ORIGIN_KIND,
+      originId: "PVTI_ORPHANED_WITHOUT_EXTERNAL_OBJECT",
+    });
     const rolledBack = await service.reconcile(COMPANY_ID, {
       mode: "rollback",
       sourceProjectId: GITHUB_PROJECT_V2_SOURCE_ID,
       confirmOriginKind: GITHUB_PROJECT_V2_ORIGIN_KIND,
     }, actor);
-    expect(rolledBack).toMatchObject({ rolledBack: 3, manualIssueCount: 8, lossless: true });
+    expect(rolledBack).toMatchObject({ rolledBack: 4, manualIssueCount: 8, lossless: false });
     expect(await db.select().from(externalObjects)).toHaveLength(0);
     expect(await db.select().from(issues)).toHaveLength(8);
     expect((await db.select().from(issues)).every((issue) => issue.originKind === "manual")).toBe(true);
+  });
+
+  it("fails the lossless proof when orphaned imported state exists outside the pinned manifest", async () => {
+    await seedCompany();
+    await db.insert(issues).values({
+      companyId: COMPANY_ID,
+      title: "Pre-existing orphaned GitHub Project V2 issue",
+      status: "todo",
+      originKind: GITHUB_PROJECT_V2_ORIGIN_KIND,
+      originId: "PVTI_PREEXISTING_ORPHAN",
+    });
+
+    await expect(syntheticService().reconcile(COMPANY_ID, requestFor("apply"), actor))
+      .rejects.toThrow("Lossless GitHub reconciliation proof failed");
+    expect(await db.select().from(projects)).toHaveLength(0);
+    expect(await db.select().from(externalObjects)).toHaveLength(0);
+    expect(await db.select().from(issues)).toHaveLength(9);
   });
 
   it("enforces the persistent company plus GitHub item origin uniqueness constraint", async () => {

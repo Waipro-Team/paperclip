@@ -464,6 +464,37 @@ test("apply kill switch fails before API, token, or receipt access", async () =>
   assert.equal(calls, 0);
 });
 
+test("CLI rejects arbitrary options, duplicate options, and mutation-scope overrides before access", async () => {
+  let calls = 0;
+  const dependencies = {
+    applyEnabled: true,
+    api: async () => { calls += 1; },
+    loadBoardToken: async () => { calls += 1; return boardToken; },
+    loadSourceToken: async () => { calls += 1; return sourceToken; },
+    writeReceipt: async () => { calls += 1; },
+  };
+
+  await assert.rejects(
+    withoutConsoleLog(() => run([...args("preflight"), "--mode", "apply"], dependencies)),
+    /Unsupported option: --mode/,
+  );
+  await assert.rejects(
+    withoutConsoleLog(() => run([...args("preflight"), "--receipt", "/tmp/second.json"], dependencies)),
+    /Duplicate option: --receipt/,
+  );
+  await assert.rejects(
+    withoutConsoleLog(() => run([...args("apply"), "--promote-fleet"], dependencies)),
+    /Duplicate option: --promote-fleet/,
+  );
+
+  const withoutScope = args("apply").filter((value) => value !== "--promote-fleet");
+  await assert.rejects(
+    withoutConsoleLog(() => run(withoutScope, dependencies)),
+    /apply requires exactly one of --canary-only or --promote-fleet/,
+  );
+  assert.equal(calls, 0);
+});
+
 test("canary-only binds, smokes, and verifies only the canary in the managed tenant sandbox", async () => {
   const agents = new Map([
     [canaryAgentId, safeAgent(canaryAgentId, "QA & Audit")],
@@ -562,6 +593,33 @@ test("preflight rejects a non-managed sandbox before loading the source credenti
     /active sandbox/,
   );
   assert.equal(sourceReads, 0);
+});
+
+test("preflight rejects a sandbox owned by another company before loading credentials or mutating", async () => {
+  const foreignCompanyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  let sourceReads = 0;
+  let mutations = 0;
+  const api = async (method, apiPath) => {
+    if (method !== "GET") mutations += 1;
+    if (apiPath === "/health") return { status: "ok", commit: expectedCommit };
+    if (apiPath.endsWith("/secret-providers/health")) return healthySecretProvider();
+    if (apiPath === `/environments/${environmentId}`) {
+      return { ...managedSandbox(), companyId: foreignCompanyId };
+    }
+    throw new Error(`unexpected API call ${method} ${apiPath}`);
+  };
+
+  await assert.rejects(
+    withoutConsoleLog(() => run(args("preflight"), {
+      api,
+      loadBoardToken: async () => boardToken,
+      loadSourceToken: async () => { sourceReads += 1; return sourceToken; },
+      writeReceipt: async () => {},
+    })),
+    /company boundary check/,
+  );
+  assert.equal(sourceReads, 0);
+  assert.equal(mutations, 0);
 });
 
 test("a foreign-company sandbox rejection restores the canary with full-state rollback", async () => {

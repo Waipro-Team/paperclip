@@ -17,6 +17,14 @@ export const GITHUB_PROJECT_V2_SOURCE_ID = "PVT_kwDOEuI4-s4BhpND";
 export const GITHUB_PROJECT_V2_SOURCE_NUMBER = 1;
 export const GITHUB_PROJECT_V2_TARGET_PROJECT = "REGIA360";
 export const GITHUB_PROJECT_V2_ORIGIN_KIND = "github_project_v2";
+export const GITHUB_PROJECT_V2_EXPECTED_ITEM_COUNT = 106;
+export const GITHUB_PROJECT_V2_EXPECTED_ITEM_ID_DIGEST =
+  "3efc45fe8354c7d1f19b5dcdfd11578a0ff7a073aced31ac599815db0b4ea69e";
+export const GITHUB_PROJECT_V2_EXPECTED_STATUS_COUNTS = Object.freeze({
+  todo: 52,
+  inProgress: 1,
+  done: 53,
+});
 
 const ALLOWED_REPOSITORIES = [
   "Repair360/core360",
@@ -75,6 +83,18 @@ export type GithubProjectReconciliationActor = {
 };
 
 type StatusCounts = z.infer<typeof statusCountsSchema>;
+
+export type GithubProjectManifestPin = {
+  itemCount: number;
+  itemIdDigest: string;
+  statusCounts: StatusCounts;
+};
+
+export const GITHUB_PROJECT_V2_MANIFEST_PIN: GithubProjectManifestPin = Object.freeze({
+  itemCount: GITHUB_PROJECT_V2_EXPECTED_ITEM_COUNT,
+  itemIdDigest: GITHUB_PROJECT_V2_EXPECTED_ITEM_ID_DIGEST,
+  statusCounts: GITHUB_PROJECT_V2_EXPECTED_STATUS_COUNTS,
+});
 
 export type GithubProjectReconciliationResult = {
   mode: GithubProjectReconciliationRequest["mode"];
@@ -176,11 +196,34 @@ function countStatuses(items: readonly GithubProjectItem[]): StatusCounts {
   }, { todo: 0, inProgress: 0, done: 0 });
 }
 
+function countPersistedStatuses(importedIssues: readonly (typeof issues.$inferSelect)[]): StatusCounts {
+  return importedIssues.reduce<StatusCounts>((counts, issue) => {
+    if (issue.status === "done") counts.done += 1;
+    else if (issue.status === "in_progress") counts.inProgress += 1;
+    else if (issue.status === "todo") counts.todo += 1;
+    return counts;
+  }, { todo: 0, inProgress: 0, done: 0 });
+}
+
 function equalStatusCounts(left: StatusCounts, right: StatusCounts) {
   return left.todo === right.todo && left.inProgress === right.inProgress && left.done === right.done;
 }
 
-function validateManifest(request: GithubProjectImportRequest) {
+function validateManifest(
+  request: GithubProjectImportRequest,
+  manifestPin: GithubProjectManifestPin,
+) {
+  if (
+    request.expectedItemCount !== manifestPin.itemCount
+    || request.expectedItemIdDigest !== manifestPin.itemIdDigest
+    || !equalStatusCounts(request.expectedStatusCounts, manifestPin.statusCounts)
+  ) {
+    throw unprocessable("GitHub project manifest declaration does not match the pinned Project #1 snapshot", {
+      expectedItemCount: manifestPin.itemCount,
+      expectedItemIdDigest: manifestPin.itemIdDigest,
+      expectedStatusCounts: manifestPin.statusCounts,
+    });
+  }
   if (request.items.length !== request.expectedItemCount) {
     throw unprocessable("GitHub project manifest item count does not match the declared count");
   }
@@ -280,6 +323,26 @@ async function readImportedState(db: Db, companyId: string, itemIds: readonly st
   return { importedIssues, objects };
 }
 
+async function readCompleteImportedState(db: Db, companyId: string, sourceProjectId: string) {
+  const importedIssues = await db
+    .select()
+    .from(issues)
+    .where(and(
+      eq(issues.companyId, companyId),
+      eq(issues.originKind, GITHUB_PROJECT_V2_ORIGIN_KIND),
+    ));
+  const objects = await db
+    .select()
+    .from(externalObjects)
+    .where(and(
+      eq(externalObjects.companyId, companyId),
+      eq(externalObjects.providerKey, "github"),
+      eq(externalObjects.objectType, "project_v2_item"),
+      sql`${externalObjects.data} ->> 'sourceProjectId' = ${sourceProjectId}`,
+    ));
+  return { importedIssues, objects };
+}
+
 function isIssueProjectionEqual(
   existing: typeof issues.$inferSelect,
   item: GithubProjectItem,
@@ -318,13 +381,17 @@ function baseResult(input: {
   importedIssueCount: number;
   externalObjectCount: number;
   manualIssueCount: number;
+  persistedIssueIdDigest: string;
+  persistedObjectIdDigest: string;
+  persistedStatusCounts: StatusCounts;
 }): GithubProjectReconciliationResult {
   const statusCounts = countStatuses(input.request.items);
   const digest = itemIdDigest(input.request.items.map((item) => item.projectItemId));
   const lossless = input.importedIssueCount === input.request.expectedItemCount
     && input.externalObjectCount === input.request.expectedItemCount
-    && digest === input.request.expectedItemIdDigest
-    && equalStatusCounts(statusCounts, input.request.expectedStatusCounts);
+    && input.persistedIssueIdDigest === input.request.expectedItemIdDigest
+    && input.persistedObjectIdDigest === input.request.expectedItemIdDigest
+    && equalStatusCounts(input.persistedStatusCounts, input.request.expectedStatusCounts);
   return {
     mode: input.mode,
     persisted: input.persisted,
@@ -345,14 +412,20 @@ function baseResult(input: {
   };
 }
 
-export function githubProjectReconciliationService(db: Db) {
+export function githubProjectReconciliationService(
+  db: Db,
+  options: { manifestPin?: GithubProjectManifestPin } = {},
+) {
+  const manifestPin = options.manifestPin ?? GITHUB_PROJECT_V2_MANIFEST_PIN;
+
   async function preview(companyId: string, request: GithubProjectImportRequest) {
-    validateManifest(request);
+    validateManifest(request, manifestPin);
     await assertCorScope(db, companyId);
     await assertMappedAgents(db, companyId, request.items);
     const project = await readRegiaProject(db, companyId);
     const ids = request.items.map((item) => item.projectItemId);
     const state = await readImportedState(db, companyId, ids);
+    const completeState = await readCompleteImportedState(db, companyId, request.sourceProjectId);
     const byOrigin = new Map(state.importedIssues.map((issue) => [issue.originId!, issue]));
     const externalById = new Map(state.objects.map((object) => [object.externalId, object]));
     let created = 0;
@@ -376,9 +449,14 @@ export function githubProjectReconciliationService(db: Db) {
       created,
       updated,
       unchanged,
-      importedIssueCount: state.importedIssues.length,
-      externalObjectCount: state.objects.length,
+      importedIssueCount: completeState.importedIssues.length,
+      externalObjectCount: completeState.objects.length,
       manualIssueCount: await countManualIssues(db, companyId),
+      persistedIssueIdDigest: itemIdDigest(
+        completeState.importedIssues.flatMap((issue) => issue.originId ? [issue.originId] : []),
+      ),
+      persistedObjectIdDigest: itemIdDigest(completeState.objects.map((object) => object.externalId)),
+      persistedStatusCounts: countPersistedStatuses(completeState.importedIssues),
     });
   }
 
@@ -388,7 +466,7 @@ export function githubProjectReconciliationService(db: Db) {
     request: GithubProjectImportRequest,
     audit: GithubProjectReconciliationActor,
   ) {
-    validateManifest(request);
+    validateManifest(request, manifestPin);
     await assertCorScope(dbx, companyId);
     await assertMappedAgents(dbx, companyId, request.items);
     let project = await readRegiaProject(dbx, companyId);
@@ -525,15 +603,10 @@ export function githubProjectReconciliationService(db: Db) {
       else unchanged += 1;
     }
 
-    const after = await readImportedState(dbx, companyId, itemIds);
-    const issueDigest = itemIdDigest(after.importedIssues.map((issue) => issue.originId!));
+    const after = await readCompleteImportedState(dbx, companyId, request.sourceProjectId);
+    const issueDigest = itemIdDigest(after.importedIssues.flatMap((issue) => issue.originId ? [issue.originId] : []));
     const objectDigest = itemIdDigest(after.objects.map((object) => object.externalId));
-    const persistedStatusCounts = after.importedIssues.reduce<StatusCounts>((counts, issue) => {
-      if (issue.status === "done") counts.done += 1;
-      else if (issue.status === "in_progress") counts.inProgress += 1;
-      else if (issue.status === "todo") counts.todo += 1;
-      return counts;
-    }, { todo: 0, inProgress: 0, done: 0 });
+    const persistedStatusCounts = countPersistedStatuses(after.importedIssues);
     if (
       after.importedIssues.length !== request.expectedItemCount
       || after.objects.length !== request.expectedItemCount
@@ -561,6 +634,9 @@ export function githubProjectReconciliationService(db: Db) {
       importedIssueCount: after.importedIssues.length,
       externalObjectCount: after.objects.length,
       manualIssueCount: await countManualIssues(dbx, companyId),
+      persistedIssueIdDigest: issueDigest,
+      persistedObjectIdDigest: objectDigest,
+      persistedStatusCounts,
     });
   }
 
@@ -617,30 +693,28 @@ export function githubProjectReconciliationService(db: Db) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`paperclip:github-project-v2:${companyId}:${request.sourceProjectId}`}, 0))`);
       const dbx = tx as unknown as Db;
       await assertCorScope(dbx, companyId);
-      const sourceObjects = await dbx
-        .select({ externalId: externalObjects.externalId })
-        .from(externalObjects)
-        .where(and(
-          eq(externalObjects.companyId, companyId),
-          eq(externalObjects.providerKey, "github"),
-          eq(externalObjects.objectType, "project_v2_item"),
-          sql`${externalObjects.data} ->> 'sourceProjectId' = ${request.sourceProjectId}`,
-        ));
-      const itemIds = sourceObjects.map((row) => row.externalId);
-      let rolledBack = 0;
-      if (itemIds.length > 0) {
-        const deletedIssues = await dbx.delete(issues).where(and(
-          eq(issues.companyId, companyId),
-          eq(issues.originKind, GITHUB_PROJECT_V2_ORIGIN_KIND),
-          inArray(issues.originId, itemIds),
-        )).returning({ id: issues.id });
-        rolledBack = deletedIssues.length;
-        await dbx.delete(externalObjects).where(and(
-          eq(externalObjects.companyId, companyId),
-          eq(externalObjects.providerKey, "github"),
-          eq(externalObjects.objectType, "project_v2_item"),
-          inArray(externalObjects.externalId, itemIds),
-        ));
+      const sourceState = await readCompleteImportedState(dbx, companyId, request.sourceProjectId);
+      const itemIds = [...new Set([
+        ...sourceState.importedIssues.flatMap((issue) => issue.originId ? [issue.originId] : []),
+        ...sourceState.objects.map((object) => object.externalId),
+      ])];
+      const deletedIssues = await dbx.delete(issues).where(and(
+        eq(issues.companyId, companyId),
+        eq(issues.originKind, GITHUB_PROJECT_V2_ORIGIN_KIND),
+      )).returning({ id: issues.id });
+      const rolledBack = deletedIssues.length;
+      await dbx.delete(externalObjects).where(and(
+        eq(externalObjects.companyId, companyId),
+        eq(externalObjects.providerKey, "github"),
+        eq(externalObjects.objectType, "project_v2_item"),
+        sql`${externalObjects.data} ->> 'sourceProjectId' = ${request.sourceProjectId}`,
+      ));
+      const residual = await readCompleteImportedState(dbx, companyId, request.sourceProjectId);
+      if (residual.importedIssues.length > 0 || residual.objects.length > 0) {
+        throw conflict("GitHub reconciliation rollback left residual imported state", {
+          importedIssueCount: residual.importedIssues.length,
+          externalObjectCount: residual.objects.length,
+        });
       }
       await logActivity(dbx, {
         companyId,
@@ -670,7 +744,7 @@ export function githubProjectReconciliationService(db: Db) {
         importedIssueCount: 0,
         externalObjectCount: 0,
         manualIssueCount: await countManualIssues(dbx, companyId),
-        lossless: true,
+        lossless: false,
       };
     });
     for (const publication of publications) publishActivity(publication);

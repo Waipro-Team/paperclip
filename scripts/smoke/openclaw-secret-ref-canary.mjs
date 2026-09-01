@@ -30,6 +30,22 @@ const FORBIDDEN_RECEIPT_HEADERS = new Set([
   "proxy-authorization",
 ]);
 const SENSITIVE_CONFIG_KEY_RE = /(api[-_]?(?:key|token)|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret(?!id)|passwd|password|credential|jwt|private[-_]?(?:key|keypem)|cookie|connection[-_]?string)/i;
+const BOOLEAN_OPTIONS = new Map([
+  ["--allow-commit-drift", "allowCommitDrift"],
+  ["--canary-only", "canaryOnly"],
+  ["--promote-fleet", "promoteFleet"],
+]);
+const VALUE_OPTIONS = new Map([
+  ["--api-base", "apiBase"],
+  ["--auth-store", "authStore"],
+  ["--openclaw-config", "openclawConfig"],
+  ["--expected-commit", "expectedCommit"],
+  ["--company-id", "companyId"],
+  ["--canary-agent-id", "canaryAgentId"],
+  ["--fleet-agent-ids", "fleetAgentIds"],
+  ["--environment-id", "environmentId"],
+  ["--receipt", "receipt"],
+]);
 
 function usage() {
   return `Usage:
@@ -71,24 +87,22 @@ function parseArgs(argv) {
     canaryOnly: false,
     promoteFleet: false,
   };
+  const seenOptions = new Set();
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
-    if (arg === "--allow-commit-drift") {
-      values.allowCommitDrift = true;
-      continue;
-    }
-    if (arg === "--canary-only") {
-      values.canaryOnly = true;
-      continue;
-    }
-    if (arg === "--promote-fleet") {
-      values.promoteFleet = true;
-      continue;
-    }
     if (!arg.startsWith("--")) throw new Error(`Unexpected argument: ${arg}`);
+    const booleanKey = BOOLEAN_OPTIONS.get(arg);
+    const valueKey = VALUE_OPTIONS.get(arg);
+    if (!booleanKey && !valueKey) throw new Error(`Unsupported option: ${arg}`);
+    if (seenOptions.has(arg)) throw new Error(`Duplicate option: ${arg}`);
+    seenOptions.add(arg);
+    if (booleanKey) {
+      values[booleanKey] = true;
+      continue;
+    }
     const next = rest[index + 1];
     if (!next || next.startsWith("--")) throw new Error(`Missing value for ${arg}`);
-    values[arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = next;
+    values[valueKey] = next;
     index += 1;
   }
   values.apiBase = normalizeApiBase(values.apiBase ?? DEFAULT_API_BASE);
@@ -601,6 +615,9 @@ async function recoverInterruptedApply(options, dependencies = {}) {
 }
 
 async function apply(options, dependencies = {}) {
+  if (options.mode !== "apply" || options.canaryOnly === options.promoteFleet) {
+    throw new Error("apply requires exactly one explicit mutation scope: --canary-only or --promote-fleet");
+  }
   const mutationKillSwitch = dependencies.applyEnabled
     ?? process.env[APPLY_KILL_SWITCH_ENV] === "true";
   if (!mutationKillSwitch) {

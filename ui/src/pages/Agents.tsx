@@ -333,10 +333,6 @@ export function Agents() {
     return <EmptyState icon={Bot} message="Select an organization to view agents." />;
   }
 
-  if (isLoading) {
-    return <PageSkeleton variant="list" />;
-  }
-
   if (tab === "sessions") {
     return (
       <div className="space-y-4">
@@ -351,6 +347,10 @@ export function Agents() {
         <SessionObservability companyId={selectedCompanyId} />
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <PageSkeleton variant="list" />;
   }
 
   const filtered = filterAgents(agents ?? [], tab, builtInAgentIds);
