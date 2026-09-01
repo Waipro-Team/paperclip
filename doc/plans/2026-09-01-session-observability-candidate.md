@@ -12,12 +12,15 @@ Status: candidate only; not deployed or connected to a live service.
 - Candidate branch: `candidate/session-observability-20260901`
 - Verified implementation commit: `601e9e40d019fa44436b16b4f3634fb234ad796e`
 - Independent-judge hardening commit: `55ba850f50f372f1d2f8213a94c5ce862ba6cf32`
+- Final-review blocker fix commit: `dbc88278a59b3b79ca88817f7ac57f0109c0e9f3`
 
 ## Delivered surface
 
-- `GET /api/companies/:companyId/session-observability`, guarded by company
-  tenancy plus the existing `company_scope:read` policy. Same-company task-bridge
-  keys are denied before the graph query; an authorized board user is allowed.
+- `GET /api/companies/:companyId/session-observability` is board/operator-only,
+  then guarded by company tenancy plus the existing `company_scope:read`
+  policy. Standard agent keys, task-bridge keys, and low-trust agent JWTs are
+  denied before the policy or graph query; authorized human board users are
+  allowed.
 - `Team / Agents / Sessioni` at `/agents/sessions`, implemented with existing
   Paperclip cards, badges, tabs, buttons, typography, colors, and spacing tokens.
 - Agent/session nodes expose running, idle, blocked, and error state; current
@@ -27,6 +30,8 @@ Status: candidate only; not deployed or connected to a live service.
   adding a chat system, event bus, queue, or writable transport.
 - The targeted fixtures cover a Chiara TEC to Giorgia MrPhone handoff and the
   owner to phase to blocker to receipt chain.
+- A node's current task is selected only from `in_progress` issues. `todo` and
+  `backlog` are never used as a fallback current task.
 
 ## Data and privacy contract
 
@@ -40,8 +45,11 @@ task identifiers, workspace names/strategies/branches, and whether an assignment
 belongs to the board. They do not select or return comment bodies, interaction
 presentation/payloads, heartbeat context content, prompts, logs, result/error
 bodies, workspace paths/URLs, emails, phone numbers, tokens, secrets, or
-customer-message content. Human user IDs are not returned. The endpoint is
-read-only and creates no new persistence or delivery semantics.
+customer-message content. Human user IDs are not returned. Activity-log actions
+and entity types cross closed output allowlists; unknown values collapse to
+`activity.event` and `entity`, and raw activity `entityId` is neither selected
+nor returned. The endpoint is read-only and creates no new persistence or
+delivery semantics.
 
 Heartbeat event types cross a closed output allowlist; unknown or content-like
 values collapse to `run.event`. Comment recipients come only from an actual
@@ -50,18 +58,36 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 
 ## Verification receipt
 
-- Targeted Vitest: 3 files, 11 tests passed (7 service, 3 route, 1 UI).
-- Existing authorization-service task-bridge test was selected separately; the
-  suite was skipped because embedded PostgreSQL is unsupported on this host.
-- TypeScript: shared, direct server, and UI passed (`tsc --noEmit` / `tsc -b`).
+- Targeted observability Vitest: 3 files, 15 tests passed (8 service, 6 route,
+  1 UI).
+- Migration regressions: 26 tests passed (25 safety + 1 snapshot drift). The
+  migration safety check passed with no new unsuppressed finding. The two new
+  index statements carry an explicit maintenance-gate suppression because the
+  repository migration runner wraps each migration file in a transaction and
+  therefore cannot execute `CREATE INDEX CONCURRENTLY`.
+- Supertest exercised the real route gate for an authorized user/admin and
+  standard, task-bridge, low-trust, and cross-company denial paths; denied
+  callers never reached policy evaluation or the graph service.
+- TypeScript: shared, DB, direct server, and UI passed (`tsc --noEmit` / `tsc -b`).
+  The server package wrapper could not run on this host because `cargo` is not
+  installed; direct server TypeScript passed and this is not reported as a full
+  server package build.
 - UI production build: passed.
 - `git diff --check`: passed before both candidate commits.
 - Volume evidence: the read-model test processed 12,000 heartbeat events plus
   12,000 comment rows in 28 ms on this host, returned the 24-receipt cap, and
   proved prompt/token/path-like event types absent from serialized output.
-- Query bounds: 500 agents, 1,000 open issues, 2,000 run/activity/event/relation
+- Query bounds: 500 agents, 1,000 in-progress issues, 2,000 run/activity/event/relation
   rows, 200 comment/interaction rows, 24 returned receipts, plus a 30-day window
-  on high-frequency activity/event/message sources. No migration was added.
+  on heartbeat runs and high-frequency activity/event/message sources.
+- Migration `0234_sleepy_sentry.sql` adds `(company_id, created_at DESC)` indexes
+  for `issue_comments` and `issue_thread_interactions`; the existing heartbeat
+  index covers the new run lookback.
+- PostgreSQL 16 proof used isolated disposable tables with 200,000 rows each and
+  the exact query ordering/predicates. `EXPLAIN (ANALYZE, BUFFERS)` selected the
+  expected bitmap index for all three sources. Execution time was 9.998 ms for
+  comments, 9.329 ms for interactions, and 7.181 ms for heartbeat runs. The
+  proof container was removed after the run; production data was not touched.
 - Polling uses the existing cross-tab leader/cache coordinator, pauses in hidden
   tabs, slows when unfocused, and retries twice with bounded exponential backoff.
 - Design token gate: the changed UI has zero candidate findings. The repository-wide
@@ -86,11 +112,19 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 
 ## Rollback plan
 
-No migration, write path, queue, OAuth/WABA setting, token, or external message
-was introduced. Roll back the hardening with `git revert 55ba850f5`; to remove
-the complete candidate, then revert receipt `542cfbba0` and implementation
-`601e9e40d`, returning to base `bfc8b1e72`. The API route and UI tab disappear
-together; no data repair or message replay is required. In staging, invalidate
-the session-observability query cache (or reload after the candidate is removed)
-so a leader-broadcast snapshot is not displayed after rollback. No deploy or live
-configuration change was performed during candidate verification.
+No write path, queue, OAuth/WABA setting, token, or external message was
+introduced. From the final receipt HEAD, remove the complete candidate —
+including every implementation and receipt commit — with:
+
+```sh
+git revert --no-commit $(git rev-list --first-parent bfc8b1e72..HEAD)
+git commit -m "revert: remove session observability candidate"
+```
+
+This returns behavior to base `bfc8b1e72` while preserving an auditable revert.
+Migration `0234_sleepy_sentry.sql` contains indexes only, so rollback drops no
+business data; the reverse migration drops only those two indexes. The API route
+and UI tab disappear together. In staging, invalidate the session-observability
+query cache (or reload after the candidate is removed) so a leader-broadcast
+snapshot is not displayed after rollback. No deploy or live configuration change
+was performed during candidate verification.
