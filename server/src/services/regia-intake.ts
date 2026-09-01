@@ -5,7 +5,9 @@ import {
   activityLog,
   agents,
   companies,
+  companySecretBindings,
   companySecrets,
+  companySecretVersions,
   environments,
   goals,
   issueCreateIdempotencyKeys,
@@ -20,6 +22,7 @@ import {
   type RegiaIntakeResponse,
 } from "@paperclipai/shared";
 import { conflict, unprocessable } from "../errors.js";
+import { createFeedbackRedactionState, sanitizeFeedbackText } from "./feedback-redaction.js";
 
 const INTAKE_ACTION = "regia.intake.accepted" as const;
 
@@ -33,8 +36,38 @@ function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().toLocaleLowerCase("it-IT").replace(/[^a-z0-9]+/g, " ").trim() ?? "";
 }
 
-function isRegiaIdentity(agent: { name: string; role: string; title: string | null }) {
-  return normalizedIdentity(agent.role) === "ceo" || [agent.name, agent.title].map(normalizedIdentity).includes("regia");
+function isRegiaCatalogIdentity(agent: {
+  name: string;
+  role: string;
+  title: string | null;
+  metadata: Record<string, unknown> | null;
+}) {
+  const catalogRole = normalizedIdentity(
+    typeof agent.metadata?.catalogRoleKey === "string" ? agent.metadata.catalogRoleKey : null,
+  );
+  const identities = [agent.name, agent.title].map(normalizedIdentity);
+  return normalizedIdentity(agent.role) === "ceo" || normalizedIdentity(agent.role) === "executive" ||
+    catalogRole === "fleet director" || catalogRole === "director pmo control room" ||
+    identities.includes("regia") || identities.includes("fleet director") ||
+    identities.includes("director pmo control room");
+}
+
+function assertNonSensitiveIntake(input: RegiaIntakeRequest) {
+  const values = [
+    input.objective,
+    ...input.constraints,
+    input.budgetEnvelope?.notes,
+    ...input.kpis.flatMap((kpi) => [kpi.name, kpi.target, kpi.unit]),
+    ...input.gates.flatMap((gate) => [gate.name, gate.condition]),
+  ].filter((value): value is string => typeof value === "string");
+  for (const [index, value] of values.entries()) {
+    const state = createFeedbackRedactionState();
+    const sanitized = sanitizeFeedbackText(value, state, `regiaIntake.${index}`, value.length + 1);
+    const containsOpaqueToken = /(?:^|\s)[A-Za-z0-9_-]{32,}(?:$|\s)/.test(value);
+    if (sanitized !== value || containsOpaqueToken) {
+      throw unprocessable("Regia intake context must not contain PII or credential material");
+    }
+  }
 }
 
 function projectEnvironmentId(policy: unknown) {
@@ -75,6 +108,7 @@ export function regiaIntakeService(db: Db) {
       input: RegiaIntakeRequest,
       actor: RegiaIntakeActor,
     ): Promise<RegiaIntakeResponse> => db.transaction(async (tx) => {
+      assertNonSensitiveIntake(input);
       const guardKey = `regia-intake:${companyId}:${input.idempotencyKey}`;
       const fingerprint = requestFingerprint(input);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${guardKey}, 0))`);
@@ -128,7 +162,9 @@ export function regiaIntakeService(db: Db) {
           reviewPolicy: "not_creator",
           created: false,
           executionAuthorized: false,
-          receipt: { activityId: receipt.id, action: INTAKE_ACTION },
+          policyConfigured: false,
+          blockingGate: "policy_configuration_required",
+          receipt: { kind: "intake", activityId: receipt.id, action: INTAKE_ACTION },
         };
       }
 
@@ -141,13 +177,13 @@ export function regiaIntakeService(db: Db) {
         status: agents.status,
         reportsTo: agents.reportsTo,
         defaultEnvironmentId: agents.defaultEnvironmentId,
+        metadata: agents.metadata,
       }).from(agents).where(eq(agents.companyId, companyId));
-      const eligible = companyAgents.filter((agent) =>
-        isRegiaIdentity(agent) && getAgentWorkEligibility({ agent, agents: companyAgents }).invokable
-      );
-      if (eligible.length === 0) throw unprocessable("Company requires exactly one invokable Regia/CEO agent");
-      if (eligible.length > 1) throw conflict("Company has multiple invokable Regia/CEO agents; assignment is ambiguous");
-      const regia = eligible[0]!;
+      const regia = companyAgents.find((agent) => agent.id === input.binding.regiaAgentId) ?? null;
+      if (!regia || regia.reportsTo !== null || !isRegiaCatalogIdentity(regia) ||
+        !getAgentWorkEligibility({ agent: regia, agents: companyAgents }).invokable) {
+        throw unprocessable("The explicit Regia/Fleet Director is not an invokable company executive");
+      }
 
       const project = await tx.select().from(projects).where(and(
         eq(projects.id, input.binding.projectId),
@@ -161,7 +197,7 @@ export function regiaIntakeService(db: Db) {
       )).then((rows) => rows[0] ?? null);
       const environment = await tx.select({ id: environments.id, status: environments.status }).from(environments)
         .where(eq(environments.id, input.binding.environmentId)).then((rows) => rows[0] ?? null);
-      const credential = await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
+      const credential = await tx.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion }).from(companySecrets).where(and(
         eq(companySecrets.id, input.binding.credentialSecretRef.secretId),
         eq(companySecrets.companyId, companyId),
         eq(companySecrets.status, "active"),
@@ -173,6 +209,25 @@ export function regiaIntakeService(db: Db) {
       if (projectEnvironmentId(project.executionWorkspacePolicy) !== input.binding.environmentId ||
         regia.defaultEnvironmentId !== input.binding.environmentId) {
         throw unprocessable("Regia intake environment binding is ambiguous or not pinned to project and agent");
+      }
+      const requestedVersion = input.binding.credentialSecretRef.version;
+      const versionNumber = requestedVersion === "latest" ? credential.latestVersion : requestedVersion;
+      const credentialVersion = await tx.select({ id: companySecretVersions.id }).from(companySecretVersions).where(and(
+        eq(companySecretVersions.secretId, credential.id),
+        eq(companySecretVersions.version, versionNumber),
+        isNull(companySecretVersions.revokedAt),
+      )).then((rows) => rows[0] ?? null);
+      if (!credentialVersion) throw unprocessable("Regia intake credential secret_ref version is unavailable");
+      const credentialBinding = await tx.select({ id: companySecretBindings.id }).from(companySecretBindings).where(and(
+        eq(companySecretBindings.companyId, companyId),
+        eq(companySecretBindings.secretId, credential.id),
+        eq(companySecretBindings.targetType, "environment"),
+        eq(companySecretBindings.targetId, environment.id),
+        eq(companySecretBindings.versionSelector, String(requestedVersion)),
+        eq(companySecretBindings.required, true),
+      )).then((rows) => rows[0] ?? null);
+      if (!credentialBinding) {
+        throw unprocessable("Regia intake credential secret_ref is not bound to the selected environment");
       }
 
       let goal = project.goalId
@@ -219,7 +274,7 @@ export function regiaIntakeService(db: Db) {
         goalId: goal!.id,
         title: taskTitle(input.objective),
         description: intakeDescription(input),
-        status: "todo",
+        status: "blocked",
         priority: "high",
         reviewPolicy: "not_creator",
         assigneeAgentId: regia.id,
@@ -227,6 +282,11 @@ export function regiaIntakeService(db: Db) {
         responsibleUserId: actor.actorId,
         originKind: "regia_intake",
         originId: input.idempotencyKey,
+        blockedTransitionAt: new Date(),
+        unblockDescriptor: {
+          owner: "board",
+          action: "Configure and approve native budget/gate policies before execution",
+        },
         issueNumber: company.issueCounter,
         identifier: `${company.issuePrefix}-${company.issueCounter}`,
       }).returning();
@@ -251,6 +311,8 @@ export function regiaIntakeService(db: Db) {
           regiaAgentId: regia.id,
           reviewPolicy: "not_creator",
           autoWake: false,
+          policyConfigured: false,
+          blockingGate: "policy_configuration_required",
           requestFingerprint: fingerprint,
           binding: {
             companyId,
@@ -272,7 +334,9 @@ export function regiaIntakeService(db: Db) {
         reviewPolicy: "not_creator",
         created: true,
         executionAuthorized: false,
-        receipt: { activityId: receipt!.id, action: INTAKE_ACTION },
+        policyConfigured: false,
+        blockingGate: "policy_configuration_required",
+        receipt: { kind: "intake", activityId: receipt!.id, action: INTAKE_ACTION },
       };
     }),
   };
