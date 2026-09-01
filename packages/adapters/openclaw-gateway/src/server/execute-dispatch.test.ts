@@ -6,6 +6,14 @@ const websocketState = vi.hoisted(() => ({
   failConnectAttempts: 0,
   failAgentRequests: 0,
   events: [] as string[],
+  configSnapshot: {
+    sourceConfig: {
+      agents: {
+        defaults: { sandbox: { mode: "all", scope: "session" } },
+        list: [{ id: "tenant-a" }],
+      },
+    },
+  } as unknown,
 }));
 
 vi.mock("ws", async () => {
@@ -46,7 +54,9 @@ vi.mock("ws", async () => {
       }
       const responsePayload = request.method === "connect"
         ? { protocol: 3 }
-        : { status: "ok", runId: "remote-run-1", summary: "done" };
+        : request.method === "config.get"
+          ? websocketState.configSnapshot
+          : { status: "ok", runId: "remote-run-1", summary: "done" };
       queueMicrotask(() => {
         this.emit("message", JSON.stringify({
           type: "res",
@@ -68,6 +78,7 @@ import { execute } from "./execute.js";
 function createContext(input: {
   onDispatch?: () => void;
   onLog?: AdapterExecutionContext["onLog"];
+  executionTarget?: AdapterExecutionContext["executionTarget"];
 } = {}): AdapterExecutionContext {
   return {
     runId: "run-1",
@@ -86,6 +97,7 @@ function createContext(input: {
     },
     config: {
       url: "ws://127.0.0.1:18789",
+      agentId: "tenant-a",
       disableDeviceAuth: true,
       timeoutSec: 1,
     },
@@ -96,6 +108,7 @@ function createContext(input: {
     },
     onLog: input.onLog ?? (async () => {}),
     onDispatch: input.onDispatch,
+    executionTarget: input.executionTarget,
   };
 }
 
@@ -105,6 +118,14 @@ describe("openclaw_gateway execute dispatch boundary", () => {
     websocketState.failConnectAttempts = 0;
     websocketState.failAgentRequests = 0;
     websocketState.events = [];
+    websocketState.configSnapshot = {
+      sourceConfig: {
+        agents: {
+          defaults: { sandbox: { mode: "all", scope: "session" } },
+          list: [{ id: "tenant-a" }],
+        },
+      },
+    };
   });
 
   afterEach(() => {
@@ -123,6 +144,7 @@ describe("openclaw_gateway execute dispatch boundary", () => {
     expect(websocketState.events).toEqual([
       "construct:1",
       "send:connect",
+      "send:config.get",
       "dispatch",
       "send:agent",
     ]);
@@ -180,5 +202,67 @@ describe("openclaw_gateway execute dispatch boundary", () => {
     });
     expect(websocketState.connectionAttempts).toBe(1);
     expect(onDispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a remote execution target before opening a host websocket", async () => {
+    const onDispatch = vi.fn();
+
+    const result = await execute(createContext({
+      onDispatch,
+      executionTarget: {
+        kind: "remote",
+        transport: "sandbox",
+        remoteCwd: "/workspace",
+      },
+    }));
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_execution_target_unsupported",
+    });
+    expect(websocketState.connectionAttempts).toBe(0);
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when the selected agent belongs to a different tenant", async () => {
+    websocketState.configSnapshot = {
+      sourceConfig: {
+        agents: {
+          defaults: { sandbox: { mode: "all" } },
+          list: [{ id: "tenant-b" }],
+        },
+      },
+    };
+    const onDispatch = vi.fn();
+
+    const result = await execute(createContext({ onDispatch }));
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_agent_not_found",
+    });
+    expect(websocketState.events).not.toContain("send:agent");
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when the selected agent has sandbox.mode=off", async () => {
+    websocketState.configSnapshot = {
+      resolved: {
+        agents: {
+          defaults: { sandbox: { mode: "off" } },
+          list: [{ id: "tenant-a" }],
+        },
+      },
+    };
+    const onDispatch = vi.fn();
+
+    const result = await execute(createContext({ onDispatch }));
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      errorCode: "openclaw_gateway_sandbox_not_enforced",
+    });
+    expect(websocketState.events).not.toContain("send:agent");
+    expect(onDispatch).not.toHaveBeenCalled();
   });
 });
