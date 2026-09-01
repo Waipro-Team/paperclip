@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "packageName": "@paperclipai/teams-catalog",
   "packageVersion": "0.1.0",
-  "generatedAt": "2026-08-31T10:05:18.241Z",
+  "generatedAt": "2026-09-01T20:42:16.140Z",
   "teams": [
     {
       "id": "paperclipai:bundled:company-defaults:core-exec-team",
@@ -188,8 +188,8 @@
         {
           "path": "TEAM.md",
           "kind": "team",
-          "sizeBytes": 1489,
-          "sha256": "a5fe6621ccdf4dc2880ba44aa72c8d65339216d02176f06e1bdc81801d1c26c5"
+          "sizeBytes": 1488,
+          "sha256": "8bf4101498f04ee7e6e968a4e13380989f8acb319df79eca006d1c1a75fa226f"
         },
         {
           "path": ".paperclip.yaml",
@@ -254,7 +254,7 @@
       ],
       "trustLevel": "assets",
       "compatibility": "compatible",
-      "contentHash": "sha256:7632108395e5cd1fa7a43042a94fd27d3d3cd21d0eea7e31c5c66636c756b788"
+      "contentHash": "sha256:093d8a785134161773f32d81af4520d00ed89a797d92f4185ba91bf0a3eef353"
     },
     {
       "id": "paperclipai:bundled:product:product-design",
