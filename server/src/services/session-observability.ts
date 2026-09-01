@@ -22,9 +22,11 @@ import type {
   SessionObservabilityStatus,
   SessionReceiptState,
 } from "@paperclipai/shared";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { createFeedbackRedactionState, sanitizeFeedbackText } from "./feedback-redaction.js";
 
-const CURRENT_ISSUE_STATUS = "in_progress" as const;
+const CURRENT_ISSUE_STATUSES = ["in_progress", "blocked", "in_review", "todo"] as const;
+const CURRENT_ISSUE_STATUS_SET = new Set<string>(CURRENT_ISSUE_STATUSES);
 const HIDDEN_AGENT_STATUSES = ["terminated", "pending_approval"] as const;
 const LIVE_RUN_STATUS_VALUES = ["queued", "scheduled_retry", "running"] as const;
 const LIVE_RUN_STATUSES = new Set<string>(LIVE_RUN_STATUS_VALUES);
@@ -85,7 +87,10 @@ const MAX_SOURCE_ROWS = 2_000;
 const MAX_MESSAGE_ROWS = 200;
 const MAX_RELATION_ROWS = 2_000;
 const MAX_MESSAGE_RECEIPTS = 24;
-const RECENT_SOURCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
+const MAX_OPERATIONAL_LABEL_LENGTH = 256;
+const PRIVATE_WORKSPACE_LABEL = "Workspace riservato";
+const SENSITIVE_OPERATIONAL_ASSIGNMENT_RE =
+  /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth(?:[-_]?token)?|token|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connection[-_]?string)\s*[:=]/i;
 
 type AgentRow = {
   id: string;
@@ -209,18 +214,18 @@ function isPreferredLiveRun(candidate: RunRow, current: RunRow | undefined): boo
     || (liveRunRank(candidate.status) === liveRunRank(current.status) && isNewerRun(candidate, current));
 }
 
-export function mergeHeartbeatRunRows(activeRows: RunRow[], recentRows: RunRow[]): RunRow[] {
+export function mergeHeartbeatRunRows(activeRows: RunRow[], historyRows: RunRow[]): RunRow[] {
   const rowsById = new Map<string, RunRow>();
 
-  // Active rows are queried independently from the historical lookback so a
-  // long-running or delayed run never disappears merely because it crossed
-  // the retention window. A run may transition between the two SELECTs, so
+  // Active rows are queried independently from the bounded history query so a
+  // long-running or delayed run never disappears behind newer terminal rows.
+  // A run may transition between the two SELECTs, so
   // duplicate IDs must retain the newest observed row rather than always
   // preferring the active-query snapshot.
   for (const row of activeRows) {
     if (isNewerRun(row, rowsById.get(row.id))) rowsById.set(row.id, row);
   }
-  for (const row of recentRows) {
+  for (const row of historyRows) {
     if (isNewerRun(row, rowsById.get(row.id))) rowsById.set(row.id, row);
   }
 
@@ -228,6 +233,30 @@ export function mergeHeartbeatRunRows(activeRows: RunRow[], recentRows: RunRow[]
     timeOf(right.createdAt) - timeOf(left.createdAt)
     || left.id.localeCompare(right.id)
   ));
+}
+
+function sanitizeOperationalLabel(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  if (SENSITIVE_OPERATIONAL_ASSIGNMENT_RE.test(trimmed)) return fallback;
+  const state = createFeedbackRedactionState();
+  const sanitized = sanitizeFeedbackText(
+    trimmed,
+    state,
+    "sessionObservability.operationalLabel",
+    MAX_OPERATIONAL_LABEL_LENGTH,
+  );
+  // These values are rendered verbatim by the control-room UI. If the shared
+  // deterministic sanitizer detects PII, a credential shape, or an overlong
+  // value, discard the entire label rather than returning a partially redacted
+  // string that could preserve identifying context.
+  return sanitized === trimmed ? trimmed : fallback;
+}
+
+function sanitizeOptionalOperationalLabel(value: string | null): string | null {
+  if (value === null) return null;
+  const sanitized = sanitizeOperationalLabel(value, "");
+  return sanitized.length > 0 ? sanitized : null;
 }
 
 const ISSUE_ACTIVITY_RANK: Record<string, number> = {
@@ -288,17 +317,17 @@ function laneForIssue(issue: IssueRow | undefined) {
   if (issue.executionWorkspaceId && issue.executionWorkspaceName && issue.executionWorkspaceStrategy) {
     return {
       workspaceId: issue.executionWorkspaceId,
-      name: issue.executionWorkspaceName,
+      name: sanitizeOperationalLabel(issue.executionWorkspaceName, PRIVATE_WORKSPACE_LABEL),
       strategy: issue.executionWorkspaceStrategy,
-      branch: issue.executionWorkspaceBranch,
+      branch: sanitizeOptionalOperationalLabel(issue.executionWorkspaceBranch),
     };
   }
   if (issue.projectWorkspaceId && issue.projectWorkspaceName) {
     return {
       workspaceId: issue.projectWorkspaceId,
-      name: issue.projectWorkspaceName,
+      name: sanitizeOperationalLabel(issue.projectWorkspaceName, PRIVATE_WORKSPACE_LABEL),
       strategy: "project_workspace",
-      branch: issue.projectWorkspaceRef,
+      branch: sanitizeOptionalOperationalLabel(issue.projectWorkspaceRef),
     };
   }
   return null;
@@ -338,7 +367,7 @@ export function assembleSessionObservability(input: {
 }): SessionObservabilityResponse {
   const generatedAt = input.now ?? new Date();
   const agentsById = new Map(input.agentRows.map((row) => [row.id, row]));
-  const currentIssueRows = input.issueRows.filter((row) => row.status === CURRENT_ISSUE_STATUS);
+  const currentIssueRows = input.issueRows.filter((row) => CURRENT_ISSUE_STATUS_SET.has(row.status));
   const issuesById = new Map(currentIssueRows.map((row) => [row.id, row]));
   const latestRunByAgent = new Map<string, RunRow>();
   const liveRunByAgent = new Map<string, RunRow>();
@@ -623,11 +652,10 @@ export function sessionObservabilityService(db: Db) {
       createdAt: heartbeatRuns.createdAt,
       updatedAt: heartbeatRuns.updatedAt,
     };
-    const recentCutoff = new Date(Date.now() - RECENT_SOURCE_WINDOW_MS);
     const [
       agentRows,
       activeRunRows,
-      recentRunRows,
+      historyRunRows,
       issueRows,
       activityRows,
       heartbeatEventRows,
@@ -662,10 +690,9 @@ export function sessionObservabilityService(db: Db) {
       db
         .select(heartbeatRunSelection)
         .from(heartbeatRuns)
-        .where(and(
-          eq(heartbeatRuns.companyId, companyId),
-          gte(heartbeatRuns.createdAt, recentCutoff),
-        ))
+        // Keep history bounded by the company/created-at index rather than a
+        // wall-clock cutoff, so quiet agents retain their latest known state.
+        .where(eq(heartbeatRuns.companyId, companyId))
         .orderBy(desc(heartbeatRuns.createdAt), heartbeatRuns.id)
         .limit(MAX_SOURCE_ROWS),
       db
@@ -703,7 +730,7 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(issues.companyId, companyId),
           isNull(issues.hiddenAt),
-          eq(issues.status, CURRENT_ISSUE_STATUS),
+          inArray(issues.status, [...CURRENT_ISSUE_STATUSES]),
         ))
         .orderBy(desc(issues.updatedAt), issues.id)
         .limit(MAX_ISSUE_ROWS),
@@ -719,7 +746,6 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(activityLog.companyId, companyId),
           isNotNull(activityLog.agentId),
-          gte(activityLog.createdAt, recentCutoff),
         ))
         .orderBy(desc(activityLog.createdAt), activityLog.id)
         .limit(MAX_SOURCE_ROWS),
@@ -732,10 +758,7 @@ export function sessionObservabilityService(db: Db) {
           createdAt: heartbeatRunEvents.createdAt,
         })
         .from(heartbeatRunEvents)
-        .where(and(
-          eq(heartbeatRunEvents.companyId, companyId),
-          gte(heartbeatRunEvents.createdAt, recentCutoff),
-        ))
+        .where(eq(heartbeatRunEvents.companyId, companyId))
         .orderBy(desc(heartbeatRunEvents.createdAt), desc(heartbeatRunEvents.id))
         .limit(MAX_SOURCE_ROWS),
       db
@@ -753,7 +776,6 @@ export function sessionObservabilityService(db: Db) {
           eq(issueComments.companyId, companyId),
           isNotNull(issueComments.authorAgentId),
           isNull(issueComments.deletedAt),
-          gte(issueComments.createdAt, recentCutoff),
         ))
         .orderBy(desc(issueComments.createdAt), issueComments.id)
         .limit(MAX_MESSAGE_ROWS),
@@ -779,13 +801,12 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(issueThreadInteractions.companyId, companyId),
           isNotNull(issueThreadInteractions.createdByAgentId),
-          gte(issueThreadInteractions.createdAt, recentCutoff),
         ))
         .orderBy(desc(issueThreadInteractions.createdAt), issueThreadInteractions.id)
         .limit(MAX_MESSAGE_ROWS),
     ]);
 
-    const runRows = mergeHeartbeatRunRows(activeRunRows, recentRunRows);
+    const runRows = mergeHeartbeatRunRows(activeRunRows, historyRunRows);
 
     const issueIds = issueRows.map((issue) => issue.id);
     const relationRows = issueIds.length === 0

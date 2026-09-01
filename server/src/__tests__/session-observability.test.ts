@@ -401,9 +401,16 @@ describe("session observability read model", () => {
     });
   });
 
-  it("exposes only in-progress current tasks and never falls back to todo or backlog", () => {
+  it("selects current tasks by deterministic status priority and excludes backlog", () => {
     const result = assembleSessionObservability(baseInput({
-      agentRows: [testAgent("assigned-agent"), testAgent("running-agent")],
+      agentRows: [
+        testAgent("assigned-agent"),
+        testAgent("running-agent"),
+        testAgent("blocked-only"),
+        testAgent("review-only"),
+        testAgent("todo-only"),
+        testAgent("backlog-only"),
+      ],
       runRows: [
         testRun({
           id: "newer-queued-run",
@@ -422,9 +429,16 @@ describe("session observability read model", () => {
       ],
       issueRows: [
         testIssue("new-backlog", "backlog", "assigned-agent", "2026-09-01T12:09:00.000Z"),
+        testIssue("new-todo", "todo", "assigned-agent", "2026-09-01T12:08:00.000Z"),
+        testIssue("new-review", "in_review", "assigned-agent", "2026-09-01T12:07:00.000Z"),
+        testIssue("new-blocked", "blocked", "assigned-agent", "2026-09-01T12:06:00.000Z"),
         testIssue("old-progress", "in_progress", "assigned-agent", "2026-09-01T12:01:00.000Z"),
         testIssue("queued-backlog", "backlog", "running-agent", "2026-09-01T12:09:00.000Z"),
         testIssue("running-progress", "in_progress", "running-agent", "2026-09-01T12:01:00.000Z"),
+        testIssue("blocked-task", "blocked", "blocked-only", "2026-09-01T12:04:00.000Z"),
+        testIssue("review-task", "in_review", "review-only", "2026-09-01T12:04:00.000Z"),
+        testIssue("todo-task", "todo", "todo-only", "2026-09-01T12:04:00.000Z"),
+        testIssue("backlog-task", "backlog", "backlog-only", "2026-09-01T12:04:00.000Z"),
       ],
     }));
 
@@ -435,11 +449,62 @@ describe("session observability read model", () => {
       issue: { id: "running-progress" },
     });
 
-    const backlogOnly = assembleSessionObservability(baseInput({
-      agentRows: [testAgent("backlog-only")],
-      issueRows: [testIssue("not-current", "backlog", "backlog-only", "2026-09-01T12:09:00.000Z")],
+    expect(result.nodes.find((node) => node.agent.id === "blocked-only")).toMatchObject({
+      status: "blocked",
+      phase: "blocked",
+      issue: { id: "blocked-task", status: "blocked" },
+      blocker: { state: "blocked", blockerCount: 0 },
+    });
+    expect(result.nodes.find((node) => node.agent.id === "review-only")).toMatchObject({
+      status: "idle",
+      phase: "review",
+      issue: { id: "review-task", status: "in_review" },
+    });
+    expect(result.nodes.find((node) => node.agent.id === "todo-only")).toMatchObject({
+      status: "idle",
+      phase: "queued",
+      issue: { id: "todo-task", status: "todo" },
+    });
+    expect(result.nodes.find((node) => node.agent.id === "backlog-only")).toMatchObject({
+      issue: null,
+      phase: "idle",
+    });
+  });
+
+  it("fails closed when workspace names, branches, or refs contain PII or credentials", () => {
+    const executionIssue = testIssue("execution-sensitive", "in_progress", "execution-agent", "2026-09-01T12:09:00.000Z");
+    executionIssue.executionWorkspaceId = "execution-workspace";
+    executionIssue.executionWorkspaceName = "Customer private@example.test";
+    executionIssue.executionWorkspaceStrategy = "git_worktree";
+    executionIssue.executionWorkspaceBranch = "feature/customer token=TOKEN_LIKE_SENTINEL";
+
+    const projectIssue = testIssue("project-sensitive", "in_progress", "project-agent", "2026-09-01T12:09:00.000Z");
+    projectIssue.projectWorkspaceId = "project-workspace";
+    projectIssue.projectWorkspaceName = "Call +39 333 123 4567";
+    projectIssue.projectWorkspaceRef = "ghp_123456789012345678901234567890";
+
+    const result = assembleSessionObservability(baseInput({
+      agentRows: [testAgent("execution-agent"), testAgent("project-agent")],
+      issueRows: [executionIssue, projectIssue],
     }));
-    expect(backlogOnly.nodes[0]).toMatchObject({ issue: null, phase: "idle" });
+
+    expect(result.nodes.find((node) => node.agent.id === "execution-agent")?.lane).toEqual({
+      workspaceId: "execution-workspace",
+      name: "Workspace riservato",
+      strategy: "git_worktree",
+      branch: null,
+    });
+    expect(result.nodes.find((node) => node.agent.id === "project-agent")?.lane).toEqual({
+      workspaceId: "project-workspace",
+      name: "Workspace riservato",
+      strategy: "project_workspace",
+      branch: null,
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("private@example.test");
+    expect(serialized).not.toContain("333 123 4567");
+    expect(serialized).not.toContain("TOKEN_LIKE_SENTINEL");
+    expect(serialized).not.toContain("ghp_");
   });
 
   it("uses a closed activity allowlist and never exposes raw activity entity IDs", () => {

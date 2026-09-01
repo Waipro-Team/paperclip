@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
+  activityLog,
   agents,
   companies,
   createDb,
+  heartbeatRunEvents,
   heartbeatRuns,
+  issueComments,
+  issues,
 } from "@paperclipai/db";
 import { sessionObservabilityService } from "../services/session-observability.js";
 import {
@@ -31,6 +35,10 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
   }, 30_000);
 
   afterEach(async () => {
+    await db.delete(issueComments);
+    await db.delete(heartbeatRunEvents);
+    await db.delete(activityLog);
+    await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
     await db.delete(companies);
@@ -119,5 +127,135 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
       humanIdentityIncluded: false,
       secretsIncluded: false,
     });
+  });
+
+  it("returns bounded historical event, handoff, receipt, and non-terminal task states", async () => {
+    const companyId = randomUUID();
+    const authorAgentId = randomUUID();
+    const todoAgentId = randomUUID();
+    const blockedAgentId = randomUUID();
+    const reviewAgentId = randomUUID();
+    const todoIssueId = randomUUID();
+    const blockedIssueId = randomUUID();
+    const reviewIssueId = randomUUID();
+    const commentId = randomUUID();
+    const runId = randomUUID();
+    const historicalAt = new Date(Date.now() - 45 * 24 * 60 * 60 * 1_000);
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Historical Company",
+      issuePrefix: `HI${randomUUID().slice(0, 5).toUpperCase()}`,
+    });
+    await db.insert(agents).values([
+      { id: authorAgentId, companyId, name: "Author", role: "engineer", status: "idle" },
+      { id: todoAgentId, companyId, name: "Todo", role: "engineer", status: "idle" },
+      { id: blockedAgentId, companyId, name: "Blocked", role: "engineer", status: "idle" },
+      { id: reviewAgentId, companyId, name: "Review", role: "engineer", status: "idle" },
+    ]);
+    await db.insert(issues).values([
+      {
+        id: todoIssueId,
+        companyId,
+        title: "Todo task",
+        identifier: `HIS-${randomUUID().slice(0, 6)}`,
+        status: "todo",
+        assigneeAgentId: todoAgentId,
+        createdAt: historicalAt,
+        updatedAt: historicalAt,
+      },
+      {
+        id: blockedIssueId,
+        companyId,
+        title: "Blocked task",
+        identifier: `HIS-${randomUUID().slice(0, 6)}`,
+        status: "blocked",
+        assigneeAgentId: blockedAgentId,
+        createdAt: historicalAt,
+        updatedAt: historicalAt,
+      },
+      {
+        id: reviewIssueId,
+        companyId,
+        title: "Review task",
+        identifier: `HIS-${randomUUID().slice(0, 6)}`,
+        status: "in_review",
+        assigneeAgentId: reviewAgentId,
+        createdAt: historicalAt,
+        updatedAt: historicalAt,
+      },
+    ]);
+    await db.insert(issueComments).values({
+      id: commentId,
+      companyId,
+      issueId: todoIssueId,
+      authorAgentId,
+      body: "PRIVATE HISTORICAL CONTENT",
+      createdAt: historicalAt,
+      updatedAt: historicalAt,
+    });
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      companyId,
+      agentId: todoAgentId,
+      status: "succeeded",
+      contextSnapshot: { issueId: todoIssueId, commentId },
+      startedAt: historicalAt,
+      finishedAt: historicalAt,
+      createdAt: historicalAt,
+      updatedAt: historicalAt,
+    });
+    await db.insert(heartbeatRunEvents).values({
+      companyId,
+      runId,
+      agentId: todoAgentId,
+      seq: 1,
+      eventType: "turn.completed",
+      message: "PRIVATE HISTORICAL EVENT CONTENT",
+      createdAt: historicalAt,
+    });
+    await db.insert(activityLog).values({
+      companyId,
+      actorType: "agent",
+      actorId: blockedAgentId,
+      agentId: blockedAgentId,
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: blockedIssueId,
+      createdAt: historicalAt,
+    });
+
+    const result = await sessionObservabilityService(db).read(companyId);
+
+    expect(result.nodes.find((node) => node.agent.id === todoAgentId)).toMatchObject({
+      phase: "queued",
+      issue: { id: todoIssueId, status: "todo" },
+      lastEvent: { source: "heartbeat_event", action: "turn.completed" },
+      handoff: {
+        kind: "comment",
+        from: { id: authorAgentId },
+        receiptId: commentId,
+        receiptState: "acknowledged",
+        runId,
+      },
+      lastReceipt: {
+        id: commentId,
+        from: { id: authorAgentId },
+        to: { id: todoAgentId },
+        state: "acknowledged",
+        runId,
+      },
+    });
+    expect(result.nodes.find((node) => node.agent.id === blockedAgentId)).toMatchObject({
+      status: "blocked",
+      phase: "blocked",
+      issue: { id: blockedIssueId, status: "blocked" },
+      lastEvent: { source: "activity", action: "issue.updated" },
+    });
+    expect(result.nodes.find((node) => node.agent.id === reviewAgentId)).toMatchObject({
+      phase: "review",
+      issue: { id: reviewIssueId, status: "in_review" },
+    });
+    expect(JSON.stringify(result)).not.toContain("PRIVATE HISTORICAL");
   });
 });
