@@ -4,23 +4,30 @@ import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const RECEIPT_SCHEMA_VERSION = 1;
+const RECEIPT_SCHEMA_VERSION = 2;
 const DEFAULT_API_BASE = "http://127.0.0.1:3100";
 const DEFAULT_AUTH_STORE = "/var/lib/portal360/paperclip/cli/auth.json";
 const DEFAULT_OPENCLAW_CONFIG = "/home/claw360/.openclaw/openclaw.json";
 const DEFAULT_EXPECTED_COMMIT = "542cfbba0d78440f153ae1e11285170825ed4a8d";
 const REDACTED_SENTINEL = "***REDACTED***";
-const SECRET_FIELDS = new Set(["authToken", "token", "password", "devicePrivateKeyPem"]);
+const APPLY_KILL_SWITCH_ENV = "PAPERCLIP_OPENCLAW_SECRET_REF_CANARY_ENABLED";
 const LEGACY_AUTH_HEADERS = new Set(["authorization", "x-openclaw-token", "x-openclaw-auth"]);
-const SENSITIVE_ENV_KEY_RE = /(api[-_]?(?:key|token)|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
+const FORBIDDEN_RECEIPT_HEADERS = new Set([
+  ...LEGACY_AUTH_HEADERS,
+  "cookie",
+  "set-cookie",
+  "proxy-authorization",
+]);
+const SENSITIVE_CONFIG_KEY_RE = /(api[-_]?(?:key|token)|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret(?!id)|passwd|password|credential|jwt|private[-_]?(?:key|keypem)|cookie|connection[-_]?string)/i;
 
 function usage() {
   return `Usage:
   node scripts/smoke/openclaw-secret-ref-canary.mjs preflight \\
     --company-id <uuid> --canary-agent-id <uuid> --fleet-agent-ids <uuid,...> \\
-    --receipt <absolute-path>
+    --environment-id <uuid> --receipt <absolute-path>
 
-  node scripts/smoke/openclaw-secret-ref-canary.mjs apply [same options]
+  ${APPLY_KILL_SWITCH_ENV}=true node scripts/smoke/openclaw-secret-ref-canary.mjs apply [same options] --canary-only
+  ${APPLY_KILL_SWITCH_ENV}=true node scripts/smoke/openclaw-secret-ref-canary.mjs apply [same options] --promote-fleet
   node scripts/smoke/openclaw-secret-ref-canary.mjs verify --receipt <absolute-path>
   node scripts/smoke/openclaw-secret-ref-canary.mjs rollback --receipt <absolute-path>
 
@@ -30,11 +37,15 @@ Options:
   --openclaw-config <path>     Default: ${DEFAULT_OPENCLAW_CONFIG}
   --expected-commit <sha>      Default: ${DEFAULT_EXPECTED_COMMIT}
   --allow-commit-drift         Explicit emergency override for verify/rollback
+  --canary-only                Bind and smoke only the canary agent
+  --promote-fleet              Bind the canary first, then the remaining exact fleet
 
 The script never prints or stores the OpenClaw gateway token or Paperclip board token.
-Apply runs a canary adapter probe first, rolls back automatically on failure, then
-binds and probes the remaining exact agent ids. Rollback restores adapter configs
-but intentionally retains the newly created, encrypted secret for recoverability.`;
+Apply is disabled unless ${APPLY_KILL_SWITCH_ENV}=true and exactly one of
+--canary-only or --promote-fleet is supplied. Every probe must use the active,
+platform-managed sandbox selected by --environment-id. Rollback restores adapter
+configs but intentionally retains the newly created encrypted secret; receipts
+therefore never describe that outcome as a full-state rollback.`;
 }
 
 function parseArgs(argv) {
@@ -43,11 +54,24 @@ function parseArgs(argv) {
   if (!["preflight", "apply", "verify", "rollback"].includes(mode)) {
     throw new Error(`Unsupported mode: ${mode}`);
   }
-  const values = { mode, allowCommitDrift: false };
+  const values = {
+    mode,
+    allowCommitDrift: false,
+    canaryOnly: false,
+    promoteFleet: false,
+  };
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
     if (arg === "--allow-commit-drift") {
       values.allowCommitDrift = true;
+      continue;
+    }
+    if (arg === "--canary-only") {
+      values.canaryOnly = true;
+      continue;
+    }
+    if (arg === "--promote-fleet") {
+      values.promoteFleet = true;
       continue;
     }
     if (!arg.startsWith("--")) throw new Error(`Unexpected argument: ${arg}`);
@@ -63,12 +87,18 @@ function parseArgs(argv) {
   if (values.allowCommitDrift && mode !== "verify" && mode !== "rollback") {
     throw new Error("--allow-commit-drift is only permitted for verify or rollback");
   }
+  if ((values.canaryOnly || values.promoteFleet) && mode !== "apply") {
+    throw new Error("--canary-only and --promote-fleet are only permitted for apply");
+  }
+  if (mode === "apply" && values.canaryOnly === values.promoteFleet) {
+    throw new Error("apply requires exactly one of --canary-only or --promote-fleet");
+  }
   if (!values.receipt || !path.isAbsolute(values.receipt)) {
     throw new Error("--receipt must be an absolute path");
   }
   if (mode === "preflight" || mode === "apply") {
-    if (!values.companyId || !values.canaryAgentId || !values.fleetAgentIds) {
-      throw new Error("--company-id, --canary-agent-id, and --fleet-agent-ids are required");
+    if (!values.companyId || !values.canaryAgentId || !values.fleetAgentIds || !values.environmentId) {
+      throw new Error("--company-id, --canary-agent-id, --fleet-agent-ids, and --environment-id are required");
     }
     values.fleetAgentIds = values.fleetAgentIds.split(",").map((value) => value.trim()).filter(Boolean);
     if (new Set(values.fleetAgentIds).size !== values.fleetAgentIds.length) {
@@ -96,12 +126,33 @@ function isSecretRef(value) {
     && value.secretId.length > 0;
 }
 
+function isUserSecretRef(value) {
+  return isPlainRecord(value)
+    && value.type === "user_secret_ref"
+    && typeof value.key === "string"
+    && value.key.length > 0;
+}
+
+function hasUrlUserInfo(value) {
+  if (typeof value !== "string" || !value.includes("://")) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.username.length > 0 || parsed.password.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function assertReceiptSafeAdapterConfig(config, label = "adapterConfig") {
   if (!isPlainRecord(config)) throw new Error(`${label} must be an object`);
   const visit = (value, keyPath) => {
     if (value === REDACTED_SENTINEL) {
       throw new Error(`${keyPath} is redacted and cannot be used for rollback`);
     }
+    if (hasUrlUserInfo(value)) {
+      throw new Error(`${keyPath} contains URL userinfo and cannot enter a receipt`);
+    }
+    if (isSecretRef(value) || isUserSecretRef(value)) return;
     if (Array.isArray(value)) {
       value.forEach((entry, index) => visit(entry, `${keyPath}[${index}]`));
       return;
@@ -109,16 +160,11 @@ export function assertReceiptSafeAdapterConfig(config, label = "adapterConfig") 
     if (!isPlainRecord(value)) return;
     for (const [key, nested] of Object.entries(value)) {
       const nextPath = `${keyPath}.${key}`;
-      if (keyPath === label && SECRET_FIELDS.has(key) && nested !== undefined && !isSecretRef(nested)) {
-        throw new Error(`${nextPath} must be a secret_ref before it can enter a receipt`);
+      if (keyPath === `${label}.headers` && FORBIDDEN_RECEIPT_HEADERS.has(key.toLowerCase())) {
+        throw new Error(`${nextPath} is a credential-bearing header and cannot enter a receipt`);
       }
-      if (keyPath === `${label}.headers` && LEGACY_AUTH_HEADERS.has(key.toLowerCase())) {
-        throw new Error(`${nextPath} is a legacy auth header and cannot enter a receipt`);
-      }
-      if (keyPath === `${label}.env` && SENSITIVE_ENV_KEY_RE.test(key)) {
-        if (!isSecretRef(nested) && !(isPlainRecord(nested) && nested.type === "user_secret_ref")) {
-          throw new Error(`${nextPath} must use a secret reference`);
-        }
+      if (SENSITIVE_CONFIG_KEY_RE.test(key) && nested !== undefined && !isSecretRef(nested) && !isUserSecretRef(nested)) {
+        throw new Error(`${nextPath} must use a secret reference`);
       }
       visit(nested, nextPath);
     }
@@ -131,7 +177,6 @@ function publicAgentSnapshot(agent) {
   assertReceiptSafeAdapterConfig(adapterConfig);
   return {
     id: agent.id,
-    name: agent.name,
     companyId: agent.companyId,
     status: agent.status,
     adapterType: agent.adapterType,
@@ -139,6 +184,29 @@ function publicAgentSnapshot(agent) {
     applied: false,
     mutationState: "untouched",
     smoke: null,
+  };
+}
+
+async function loadAndValidateManagedEnvironment(api, companyId, environmentId) {
+  const environment = await api("GET", `/environments/${environmentId}`);
+  if (environment?.id !== environmentId) {
+    throw new Error("Environment identity mismatch");
+  }
+  if (environment.companyId !== undefined && environment.companyId !== null && environment.companyId !== companyId) {
+    throw new Error("Environment failed the company boundary check");
+  }
+  if (environment.driver !== "sandbox" || environment.status !== "active") {
+    throw new Error("Canary environment must be an active sandbox");
+  }
+  const metadata = isPlainRecord(environment.metadata) ? environment.metadata : {};
+  if (metadata.managedByPaperclip !== true && metadata.managedKubernetesSandbox !== true) {
+    throw new Error("Canary environment must be platform-managed");
+  }
+  return {
+    id: environment.id,
+    driver: environment.driver,
+    status: environment.status,
+    platformManaged: true,
   };
 }
 
@@ -251,7 +319,7 @@ async function loadAndValidateTargets(api, companyId, canaryAgentId, fleetAgentI
     }
     targets.push(snapshot);
   }
-  return { companyName: company.name ?? null, targets };
+  return { targets };
 }
 
 function smokeSummary(result) {
@@ -264,9 +332,10 @@ function smokeSummary(result) {
   };
 }
 
-async function runAdapterSmoke(api, companyId, config) {
+async function runAdapterSmoke(api, companyId, environmentId, config) {
   const result = await api("POST", `/companies/${companyId}/adapters/openclaw_gateway/test-environment`, {
     adapterConfig: config,
+    environmentId,
   });
   const summary = smokeSummary(result);
   if (summary.status !== "pass") {
@@ -277,6 +346,12 @@ async function runAdapterSmoke(api, companyId, config) {
 
 async function restoreAppliedTargets(api, receipt) {
   const errors = [];
+  for (const target of receipt.targets) {
+    assertReceiptSafeAdapterConfig(
+      target.previousAdapterConfig ?? {},
+      `targets[${target.id ?? "unknown"}].previousAdapterConfig`,
+    );
+  }
   for (const target of [...receipt.targets].reverse()) {
     const mayHaveMutated = target.applied
       || ["binding_pending", "bound", "rollback_failed"].includes(target.mutationState);
@@ -302,16 +377,17 @@ async function restoreAppliedTargets(api, receipt) {
 
 async function preflight(options, dependencies = {}) {
   const boardToken = await (dependencies.loadBoardToken ?? loadBoardToken)(options.authStore, options.apiBase);
-  const sourceToken = await (dependencies.loadSourceToken ?? loadSourceToken)(options.openclawConfig);
   const api = dependencies.api ?? makeApi(options.apiBase, boardToken, dependencies.fetchImpl);
   const health = await checkHealth(api, options.expectedCommit, options.allowCommitDrift);
   const secretProviderHealth = await checkLocalEncryptedProvider(api, options.companyId);
-  const { companyName, targets } = await loadAndValidateTargets(
+  const environment = await loadAndValidateManagedEnvironment(api, options.companyId, options.environmentId);
+  const { targets } = await loadAndValidateTargets(
     api,
     options.companyId,
     options.canaryAgentId,
     options.fleetAgentIds,
   );
+  const sourceToken = await (dependencies.loadSourceToken ?? loadSourceToken)(options.openclawConfig);
   const now = new Date().toISOString();
   const receipt = {
     schemaVersion: RECEIPT_SCHEMA_VERSION,
@@ -323,7 +399,8 @@ async function preflight(options, dependencies = {}) {
     observedHealth: health,
     secretProviderHealth,
     companyId: options.companyId,
-    companyName,
+    environment,
+    environmentId: options.environmentId,
     canaryAgentId: options.canaryAgentId,
     fleetAgentIds: options.fleetAgentIds,
     sourceConfigPath: options.openclawConfig,
@@ -331,6 +408,11 @@ async function preflight(options, dependencies = {}) {
     plannedSecretKey: null,
     createdSecretId: null,
     retainedSecretId: null,
+    rollbackPolicy: {
+      adapterConfigs: "restore_exact_previous_config",
+      createdEncryptedSecret: "retain_for_recoverability",
+      fullStateRollback: false,
+    },
     targets,
     events: [{ at: now, event: "preflight_pass" }],
   };
@@ -339,8 +421,14 @@ async function preflight(options, dependencies = {}) {
 }
 
 async function apply(options, dependencies = {}) {
+  const mutationKillSwitch = dependencies.applyEnabled
+    ?? process.env[APPLY_KILL_SWITCH_ENV] === "true";
+  if (!mutationKillSwitch) {
+    throw new Error(`apply is disabled; set ${APPLY_KILL_SWITCH_ENV}=true to open the mutation gate`);
+  }
   const state = await preflight(options, dependencies);
   const { api, sourceToken, receipt } = state;
+  receipt.executionMode = options.canaryOnly ? "canary_only" : "fleet_promotion";
   receipt.status = "applying";
   appendEvent(receipt, "apply_started");
   await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
@@ -361,7 +449,10 @@ async function apply(options, dependencies = {}) {
     appendEvent(receipt, "encrypted_secret_created");
     await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
 
-    for (const target of receipt.targets) {
+    const targetsToApply = options.canaryOnly
+      ? receipt.targets.filter((target) => target.id === receipt.canaryAgentId)
+      : receipt.targets;
+    for (const target of targetsToApply) {
       target.mutationState = "binding_pending";
       appendEvent(receipt, target.id === receipt.canaryAgentId ? "canary_binding_started" : "fleet_binding_started", { agentId: target.id });
       await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
@@ -384,7 +475,12 @@ async function apply(options, dependencies = {}) {
       appendEvent(receipt, "agent_secret_ref_bound", { agentId: target.id });
       await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
       try {
-        target.smoke = await runAdapterSmoke(api, receipt.companyId, persistedConfig);
+        target.smoke = await runAdapterSmoke(
+          api,
+          receipt.companyId,
+          receipt.environmentId,
+          persistedConfig,
+        );
       } catch (error) {
         target.smoke = error?.smoke ?? { status: "fail", testedAt: null, checks: [] };
         throw error;
@@ -393,14 +489,16 @@ async function apply(options, dependencies = {}) {
       await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
     }
 
-    receipt.status = "pass";
-    appendEvent(receipt, "fleet_binding_pass");
+    receipt.status = options.canaryOnly ? "canary_pass" : "fleet_pass";
+    appendEvent(receipt, options.canaryOnly ? "canary_binding_pass" : "fleet_binding_pass");
     await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
     return receipt;
   } catch (error) {
     appendEvent(receipt, "apply_failed", { error: error instanceof Error ? error.message : "unknown apply error" });
     const rollbackErrors = await restoreAppliedTargets(api, receipt);
-    receipt.status = rollbackErrors.length === 0 ? "rolled_back" : "rollback_failed";
+    receipt.status = rollbackErrors.length === 0
+      ? "adapter_configs_restored_secret_retained"
+      : "rollback_failed";
     if (rollbackErrors.length > 0) receipt.rollbackErrors = rollbackErrors;
     appendEvent(receipt, receipt.status);
     await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
@@ -411,11 +509,20 @@ async function apply(options, dependencies = {}) {
 async function loadReceiptOptions(options, readReceipt = readJson) {
   const receipt = await readReceipt(options.receipt);
   if (receipt?.schemaVersion !== RECEIPT_SCHEMA_VERSION) throw new Error("Unsupported receipt schema");
+  if (
+    receipt.rollbackPolicy?.adapterConfigs !== "restore_exact_previous_config"
+    || receipt.rollbackPolicy?.createdEncryptedSecret !== "retain_for_recoverability"
+    || receipt.rollbackPolicy?.fullStateRollback !== false
+  ) {
+    throw new Error("Unsupported or ambiguous receipt rollback policy");
+  }
   options.apiBase = normalizeApiBase(receipt.apiBase ?? options.apiBase);
   options.expectedCommit = receipt.expectedCommit ?? options.expectedCommit;
   options.companyId = receipt.companyId;
   options.canaryAgentId = receipt.canaryAgentId;
   options.fleetAgentIds = receipt.fleetAgentIds;
+  options.environmentId = receipt.environmentId;
+  if (!options.environmentId) throw new Error("Receipt has no managed sandbox environment id");
   return receipt;
 }
 
@@ -424,10 +531,17 @@ async function verify(options, dependencies = {}) {
   const boardToken = await (dependencies.loadBoardToken ?? loadBoardToken)(options.authStore, options.apiBase);
   const api = dependencies.api ?? makeApi(options.apiBase, boardToken, dependencies.fetchImpl);
   receipt.observedHealth = await checkHealth(api, options.expectedCommit, options.allowCommitDrift);
+  receipt.environment = await loadAndValidateManagedEnvironment(
+    api,
+    receipt.companyId,
+    receipt.environmentId,
+  );
   if (!receipt.createdSecretId) throw new Error("Receipt has no created secret id");
   const usage = await api("GET", `/secrets/${receipt.createdSecretId}/usage`);
   const bindings = Array.isArray(usage?.bindings) ? usage.bindings : [];
-  for (const target of receipt.targets) {
+  const boundTargets = receipt.targets.filter((target) => target.applied || target.mutationState === "bound");
+  if (boundTargets.length === 0) throw new Error("Receipt has no bound targets to verify");
+  for (const target of boundTargets) {
     const agent = await api("GET", `/agents/${target.id}`);
     if (agent?.companyId !== receipt.companyId) throw new Error(`Agent ${target.id} crossed the receipt company boundary`);
     const config = agent?.adapterConfig ?? {};
@@ -442,7 +556,12 @@ async function verify(options, dependencies = {}) {
     );
     if (matching.length !== 1) throw new Error(`Agent ${target.id} has ${matching.length} authToken binding rows`);
     if (target.id === receipt.canaryAgentId) {
-      target.verifySmoke = await runAdapterSmoke(api, receipt.companyId, config);
+      target.verifySmoke = await runAdapterSmoke(
+        api,
+        receipt.companyId,
+        receipt.environmentId,
+        config,
+      );
     }
   }
   receipt.status = "verified";
@@ -457,7 +576,11 @@ async function rollback(options, dependencies = {}) {
   const api = dependencies.api ?? makeApi(options.apiBase, boardToken, dependencies.fetchImpl);
   receipt.observedHealth = await checkHealth(api, options.expectedCommit, options.allowCommitDrift);
   const errors = await restoreAppliedTargets(api, receipt);
-  receipt.status = errors.length === 0 ? "rolled_back" : "rollback_failed";
+  receipt.status = errors.length === 0
+    ? receipt.createdSecretId
+      ? "adapter_configs_restored_secret_retained"
+      : "adapter_configs_restored"
+    : "rollback_failed";
   if (errors.length > 0) receipt.rollbackErrors = errors;
   appendEvent(receipt, receipt.status);
   await (dependencies.writeReceipt ?? writeReceipt)(options.receipt, receipt);
@@ -485,7 +608,10 @@ export async function run(argv, dependencies = {}) {
     canaryAgentId: receipt.canaryAgentId,
     agentCount: receipt.targets.length,
     observedCommit: receipt.observedHealth?.commit ?? null,
-    retainedSecretOnRollback: receipt.status === "rolled_back" && Boolean(receipt.retainedSecretId),
+    retainedSecretOnRollback:
+      receipt.status === "adapter_configs_restored_secret_retained"
+      && Boolean(receipt.retainedSecretId),
+    fullStateRollback: receipt.rollbackPolicy?.fullStateRollback ?? null,
   }));
   return receipt;
 }
