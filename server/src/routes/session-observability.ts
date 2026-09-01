@@ -15,6 +15,14 @@ export function sessionObservabilityRoutes(db: Db) {
 
   router.get("/companies/:companyId/session-observability", async (req, res) => {
     const companyId = req.params.companyId as string;
+    // This projection is deliberately a board/operator surface. A company-wide
+    // graph would let a standard agent key inspect peer agents, so all agent
+    // credentials (including task-bridge and low-trust runs) fail closed here.
+    if (req.actor.type !== "board") {
+      throw forbidden("Session observability requires an authenticated board user.", {
+        reason: "deny_scope",
+      });
+    }
     assertCompanyAccess(req, companyId);
     const decision = await access.decide({
       actor: req.actor,

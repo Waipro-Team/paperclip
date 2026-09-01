@@ -58,6 +58,10 @@ export const issueThreadInteractions = pgTable(
   },
   (table) => ({
     issueIdx: index("issue_thread_interactions_issue_idx").on(table.issueId),
+    companyCreatedAtIdx: index("issue_thread_interactions_company_created_at_idx").on(
+      table.companyId,
+      table.createdAt.desc(),
+    ),
     companyIssueCreatedAtIdx: index("issue_thread_interactions_company_issue_created_at_idx").on(
       table.companyId,
       table.issueId,

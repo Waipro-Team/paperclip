@@ -139,7 +139,7 @@ describe("session observability read model", () => {
         {
           id: "issue-tec",
           identifier: "TEC-7",
-          status: "blocked",
+          status: "in_progress",
           assigneeAgentId: "agent-chiara",
           assigneeUserId: null,
           createdByAgentId: null,
@@ -160,7 +160,6 @@ describe("session observability read model", () => {
           agentId: "agent-giorgia",
           action: "issue.updated",
           entityType: "issue",
-          entityId: "issue-mrphone",
           createdAt: at("2026-09-01T12:07:30.000Z"),
         },
       ],
@@ -377,7 +376,7 @@ describe("session observability read model", () => {
     });
   });
 
-  it("selects active work deterministically ahead of newer backlog and queued work", () => {
+  it("exposes only in-progress current tasks and never falls back to todo or backlog", () => {
     const result = assembleSessionObservability(baseInput({
       agentRows: [testAgent("assigned-agent"), testAgent("running-agent")],
       runRows: [
@@ -410,6 +409,35 @@ describe("session observability read model", () => {
       phase: "executing",
       issue: { id: "running-progress" },
     });
+
+    const backlogOnly = assembleSessionObservability(baseInput({
+      agentRows: [testAgent("backlog-only")],
+      issueRows: [testIssue("not-current", "backlog", "backlog-only", "2026-09-01T12:09:00.000Z")],
+    }));
+    expect(backlogOnly.nodes[0]).toMatchObject({ issue: null, phase: "idle" });
+  });
+
+  it("uses a closed activity allowlist and never exposes raw activity entity IDs", () => {
+    const result = assembleSessionObservability(baseInput({
+      agentRows: [testAgent("agent-1")],
+      activityRows: [{
+        id: "activity-sensitive",
+        agentId: "agent-1",
+        action: "customer.email.sent/to=person@example.test",
+        entityType: "auth_user/person@example.test",
+        createdAt: at("2026-09-01T12:08:00.000Z"),
+      }],
+    }));
+    const serialized = JSON.stringify(result);
+
+    expect(result.nodes[0]?.lastEvent).toMatchObject({
+      source: "activity",
+      action: "activity.event",
+      entityType: "entity",
+      entityId: null,
+    });
+    expect(serialized).not.toContain("person@example.test");
+    expect(serialized).not.toContain("customer.email.sent");
   });
 
   it("replaces arbitrary heartbeat event types with a closed public label", () => {
