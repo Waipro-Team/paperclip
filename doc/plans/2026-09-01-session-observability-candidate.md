@@ -14,6 +14,7 @@ Status: candidate only; not deployed or connected to a live service.
 - Independent-judge hardening commit: `55ba850f50f372f1d2f8213a94c5ce862ba6cf32`
 - Final-review blocker fix commit: `dbc88278a59b3b79ca88817f7ac57f0109c0e9f3`
 - Active-run retention fix commit: `a875a6a5890032b5b7b3da75a87bfaf5c12efa49`
+- Cross-query transition race fix commit: `e3034b7774f1de3b925733da47e882e9ee225649`
 
 ## Delivered surface
 
@@ -37,6 +38,10 @@ Status: candidate only; not deployed or connected to a live service.
   independently from the 30-day historical window, merged with recent runs,
   and deduplicated by run ID. An active run therefore remains visible after it
   crosses the historical cutoff.
+- If a run changes state between the active and recent queries, duplicate IDs
+  now retain the row with the newest `updated_at`/`created_at` snapshot. A
+  newer terminal observation therefore replaces a stale active observation
+  within the same poll.
 
 ## Data and privacy contract
 
@@ -72,6 +77,12 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   agents, and an active row in a different company. All three target-company
   agents remained visible with the expected phases, while the other-company
   agent was absent.
+- Cross-query transition follow-up: 15 direct server tests passed and the new
+  focused regression proves both input orders select the newer terminal row
+  for a duplicate run ID. Direct server TypeScript `--noEmit` and
+  `git diff --check` passed. The PostgreSQL query shape is unchanged by this
+  in-memory merge correction; the prior non-root PostgreSQL regression remains
+  the query-level proof.
 - Migration regressions: 26 tests passed (25 safety + 1 snapshot drift). The
   migration safety check passed with no new unsuppressed finding. The two new
   index statements carry an explicit maintenance-gate suppression because the
