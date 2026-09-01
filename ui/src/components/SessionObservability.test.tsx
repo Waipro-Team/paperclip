@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,6 +44,7 @@ describe("SessionObservability", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     root?.unmount();
     container?.remove();
     root = null;
@@ -153,19 +154,39 @@ describe("SessionObservability", () => {
     expect(text).not.toContain("private@example.test");
   });
 
-  it("recovers a stale company denial once without broadening authorization or looping", async () => {
-    mockGet.mockRejectedValue(new ApiError("User does not have access to this company", 403, null));
+  it.each([401, 403] as const)(
+    "stops polling after a persistent %i, performs one automatic recovery, and retries only on demand",
+    async (status) => {
+      vi.useFakeTimers();
+      mockGet.mockRejectedValue(new ApiError("User does not have access to this company", status, null));
 
-    const panel = renderPanel();
+      const panel = renderPanel();
 
-    await vi.waitFor(() => {
-      expect(panel.textContent).toContain("Paperclip non riesce a confermare l'accesso corrente alla compagnia.");
-    });
-    await vi.waitFor(() => {
+      await vi.waitFor(() => {
+        expect(panel.textContent).toContain("Paperclip non riesce a confermare l'accesso corrente alla compagnia.");
+        expect(mockGet).toHaveBeenCalledTimes(2);
+      });
+      expect(panel.textContent).not.toContain("User does not have access to this company");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
       expect(mockGet).toHaveBeenCalledTimes(2);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(mockGet).toHaveBeenCalledTimes(2);
-    expect(panel.textContent).not.toContain("User does not have access to this company");
-  });
+
+      const retryButton = [...panel.querySelectorAll("button")]
+        .find((button) => button.textContent === "Riprova");
+      expect(retryButton).toBeDefined();
+      await act(async () => {
+        retryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      await vi.waitFor(() => {
+        expect(mockGet).toHaveBeenCalledTimes(3);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(mockGet).toHaveBeenCalledTimes(3);
+    },
+  );
 });

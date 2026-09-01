@@ -215,14 +215,25 @@ export function SessionObservability({ companyId }: { companyId: string }) {
     queryKey,
     queryFn: () => sessionObservabilityApi.get(companyId),
     enabled: shared.enabled,
-    refetchInterval: shared.refetchInterval,
+    refetchInterval: (currentQuery) => (
+      recoverableAccessStatus(currentQuery.state.error) === null
+        ? shared.refetchInterval
+        : false
+    ),
     staleTime: 10_000,
     retry: (failureCount, error) => recoverableAccessStatus(error) === null && failureCount < 2,
     retryDelay: (attempt) => Math.min(1_000 * (2 ** attempt), 15_000),
   });
   const accessRecovery = useMutation({
     mutationFn: async (status: 401 | 403) => {
-      await recoverAccessQueries(queryClient, { status, companyId });
+      await recoverAccessQueries(queryClient, {
+        status,
+        companyId,
+        explicitRefetchQueryKey: queryKey,
+      });
+    },
+    onSuccess: async () => {
+      await query.refetch();
     },
   });
   const automaticRecoveryKeyRef = useRef<string | null>(null);

@@ -659,8 +659,39 @@ export function sessionObservabilityService(db: Db) {
       createdAt: heartbeatRuns.createdAt,
       updatedAt: heartbeatRuns.updatedAt,
     };
+    const agentRows = await db
+      .select({
+        id: agents.id,
+        name: agents.name,
+        role: agents.role,
+        title: agents.title,
+        status: agents.status,
+        updatedAt: agents.updatedAt,
+      })
+      .from(agents)
+      .where(and(
+        eq(agents.companyId, companyId),
+        notInArray(agents.status, [...HIDDEN_AGENT_STATUSES]),
+      ))
+      .orderBy(agents.status, agents.id)
+      .limit(MAX_AGENT_ROWS);
+    const visibleAgentIds = agentRows.map((agent) => agent.id);
+    const costRowsPromise = visibleAgentIds.length === 0
+      ? Promise.resolve([] as Array<{ agentId: string; totalCostCents: number }>)
+      : db
+        .select({
+          agentId: agentRuntimeState.agentId,
+          totalCostCents: agentRuntimeState.totalCostCents,
+        })
+        .from(agentRuntimeState)
+        .where(and(
+          eq(agentRuntimeState.companyId, companyId),
+          inArray(agentRuntimeState.agentId, visibleAgentIds),
+        ))
+        .orderBy(agentRuntimeState.agentId)
+        .limit(MAX_AGENT_ROWS);
+
     const [
-      agentRows,
       costRows,
       activeRunRows,
       historyRunRows,
@@ -670,31 +701,7 @@ export function sessionObservabilityService(db: Db) {
       commentRows,
       interactionRows,
     ] = await Promise.all([
-      db
-        .select({
-          id: agents.id,
-          name: agents.name,
-          role: agents.role,
-          title: agents.title,
-          status: agents.status,
-          updatedAt: agents.updatedAt,
-        })
-        .from(agents)
-        .where(and(
-          eq(agents.companyId, companyId),
-          notInArray(agents.status, [...HIDDEN_AGENT_STATUSES]),
-        ))
-        .orderBy(agents.status, agents.id)
-        .limit(MAX_AGENT_ROWS),
-      db
-        .select({
-          agentId: agentRuntimeState.agentId,
-          totalCostCents: agentRuntimeState.totalCostCents,
-        })
-        .from(agentRuntimeState)
-        .where(eq(agentRuntimeState.companyId, companyId))
-        .orderBy(agentRuntimeState.agentId)
-        .limit(MAX_AGENT_ROWS),
+      costRowsPromise,
       db
         .select(heartbeatRunSelection)
         .from(heartbeatRuns)
