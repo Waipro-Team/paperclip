@@ -209,16 +209,19 @@ function isPreferredLiveRun(candidate: RunRow, current: RunRow | undefined): boo
     || (liveRunRank(candidate.status) === liveRunRank(current.status) && isNewerRun(candidate, current));
 }
 
-function mergeHeartbeatRunRows(activeRows: RunRow[], recentRows: RunRow[]): RunRow[] {
+export function mergeHeartbeatRunRows(activeRows: RunRow[], recentRows: RunRow[]): RunRow[] {
   const rowsById = new Map<string, RunRow>();
 
   // Active rows are queried independently from the historical lookback so a
   // long-running or delayed run never disappears merely because it crossed
-  // the retention window. Recent active rows occur in both result sets; keep
-  // one copy and preserve the independently queried active record.
-  for (const row of activeRows) rowsById.set(row.id, row);
+  // the retention window. A run may transition between the two SELECTs, so
+  // duplicate IDs must retain the newest observed row rather than always
+  // preferring the active-query snapshot.
+  for (const row of activeRows) {
+    if (isNewerRun(row, rowsById.get(row.id))) rowsById.set(row.id, row);
+  }
   for (const row of recentRows) {
-    if (!rowsById.has(row.id)) rowsById.set(row.id, row);
+    if (isNewerRun(row, rowsById.get(row.id))) rowsById.set(row.id, row);
   }
 
   return [...rowsById.values()].sort((left, right) => (
