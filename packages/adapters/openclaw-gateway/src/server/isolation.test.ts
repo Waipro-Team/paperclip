@@ -50,6 +50,28 @@ describe("validateOpenClawIsolationSnapshot", () => {
     ).toMatchObject({ ok: false, code: "openclaw_gateway_sandbox_not_enforced" });
   });
 
+  it("prefers the effective runtime policy over a safer source view", () => {
+    expect(
+      validateOpenClawIsolationSnapshot(
+        {
+          runtimeConfig: {
+            agents: {
+              defaults: { sandbox: { mode: "off" } },
+              list: [{ id: "tenant-a" }],
+            },
+          },
+          sourceConfig: {
+            agents: {
+              defaults: { sandbox: { mode: "all" } },
+              list: [{ id: "tenant-a" }],
+            },
+          },
+        },
+        "tenant-a",
+      ),
+    ).toMatchObject({ ok: false, code: "openclaw_gateway_sandbox_not_enforced" });
+  });
+
   it("rejects main, default agents, and shared sandbox scope", () => {
     expect(validateOpenClawIsolationSnapshot({}, "main")).toMatchObject({
       ok: false,

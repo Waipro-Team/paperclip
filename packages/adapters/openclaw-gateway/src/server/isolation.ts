@@ -27,7 +27,9 @@ function nonEmpty(value: unknown): string | null {
 function configRoot(snapshot: unknown): JsonRecord | null {
   const outer = asRecord(snapshot);
   if (!outer) return null;
-  for (const key of ["sourceConfig", "resolved", "config"] as const) {
+  // Prefer the effective runtime view. Source/resolved snapshots are useful
+  // fallbacks for older gateways, but must not mask a weaker runtime policy.
+  for (const key of ["runtimeConfig", "config", "sourceConfig", "resolved"] as const) {
     const candidate = asRecord(outer[key]);
     if (candidate) return candidate;
   }
