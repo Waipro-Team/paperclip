@@ -1,4 +1,6 @@
 import { getPageVisibility, getVisibilityHeaderValue } from "@/lib/page-visibility";
+import { queryKeys } from "@/lib/queryKeys";
+import type { QueryClient } from "@tanstack/react-query";
 
 const BASE = "/api";
 
@@ -12,6 +14,66 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
   }
+}
+
+export type RecoverableAccessStatus = 401 | 403;
+
+export function recoverableAccessStatus(error: unknown): RecoverableAccessStatus | null {
+  if (!(error instanceof ApiError)) return null;
+  return error.status === 401 || error.status === 403 ? error.status : null;
+}
+
+/**
+ * Stable key for the one automatic access refresh a mounted surface may try.
+ * Keeping the attempt keyed by company + status prevents a persistent denial
+ * from becoming a request loop; an explicit user retry remains available.
+ */
+export function accessRecoveryAttemptKey(
+  error: unknown,
+  companyId?: string | null,
+): string | null {
+  const status = recoverableAccessStatus(error);
+  return status === null ? null : `${companyId?.trim() || "global"}:${status}`;
+}
+
+export function shouldStartAutomaticAccessRecovery(
+  previousAttemptKey: string | null,
+  error: unknown,
+  companyId?: string | null,
+): boolean {
+  const nextAttemptKey = accessRecoveryAttemptKey(error, companyId);
+  return nextAttemptKey !== null && nextAttemptKey !== previousAttemptKey;
+}
+
+/**
+ * Re-read identity and authorization state after a stale 401/403 without ever
+ * changing grants. Invalidation is deliberately sequential: the account must
+ * settle before account-keyed company queries are allowed to refetch.
+ */
+export async function recoverAccessQueries(
+  queryClient: Pick<QueryClient, "invalidateQueries">,
+  input: { status: RecoverableAccessStatus; companyId?: string | null },
+): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.auth.session,
+    refetchType: "active",
+  });
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.access.currentBoardAccess,
+    refetchType: "active",
+  });
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.companies.all,
+    refetchType: "active",
+  });
+
+  const companyId = input.companyId?.trim();
+  if (input.status !== 403 || !companyId) return;
+
+  await queryClient.invalidateQueries({
+    predicate: (query) => query.queryKey.some((part) => part === companyId),
+    refetchType: "active",
+  });
 }
 
 export interface RequestOptions {
