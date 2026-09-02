@@ -232,6 +232,12 @@ export function approvalRoutes(
       : [];
     const uniqueIssueIds = Array.from(new Set(issueIds));
     const { issueIds: _issueIds, ...approvalInput } = req.body;
+    if (approvalInput.type === "regia_execution_policy") {
+      res.status(422).json({
+        error: "Regia execution policy approvals can only be created by the Regia intake transaction",
+      });
+      return;
+    }
     const normalizedPayload =
       approvalInput.type === "hire_agent"
         ? await secretsSvc.normalizeHireApprovalPayloadForPersistence(
@@ -413,7 +419,6 @@ export function approvalRoutes(
 
     if (applied) {
       const linkedIssues = await issueApprovalsSvc.listIssuesForApproval(approval.id);
-      const lostReviewIssueIds = await lostReviewPathIssueIds(approval.companyId, linkedIssues);
       await logActivity(db, {
         companyId: approval.companyId,
         actorType: "user",
@@ -423,14 +428,17 @@ export function approvalRoutes(
         entityId: approval.id,
         details: { type: approval.type },
       });
-      await queueAdditionalApprovalReviewPathWakes({
-        approvalId: approval.id,
-        approvalStatus: approval.status,
-        companyId: approval.companyId,
-        linkedIssues,
-        lostIssueIds: lostReviewIssueIds,
-        requestedByUserId: req.actor.userId ?? "board",
-      });
+      if (approval.type !== "regia_execution_policy") {
+        const lostReviewIssueIds = await lostReviewPathIssueIds(approval.companyId, linkedIssues);
+        await queueAdditionalApprovalReviewPathWakes({
+          approvalId: approval.id,
+          approvalStatus: approval.status,
+          companyId: approval.companyId,
+          linkedIssues,
+          lostIssueIds: lostReviewIssueIds,
+          requestedByUserId: req.actor.userId ?? "board",
+        });
+      }
     }
 
     res.json(redactApprovalPayload(approval));
