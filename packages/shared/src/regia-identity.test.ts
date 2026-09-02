@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRegiaRootCatalogRoleKey } from "./constants.js";
+import { isRegiaRootCatalogRoleKey, REGIA_ROOT_CATALOG_ROLE_KEYS } from "./constants.js";
 
 describe("isRegiaRootCatalogRoleKey", () => {
   it("accepts only the explicit canonical Regia root catalog keys", () => {
@@ -17,5 +17,17 @@ describe("isRegiaRootCatalogRoleKey", () => {
     ]) {
       expect(isRegiaRootCatalogRoleKey(value)).toBe(false);
     }
+  });
+
+  it("keeps the canonical role-key tuple immutable at runtime", () => {
+    expect(Object.isFrozen(REGIA_ROOT_CATALOG_ROLE_KEYS)).toBe(true);
+
+    const mutableAlias = REGIA_ROOT_CATALOG_ROLE_KEYS as unknown as string[];
+    expect(() => mutableAlias.push("attacker_role")).toThrow(TypeError);
+    expect(REGIA_ROOT_CATALOG_ROLE_KEYS).toEqual([
+      "director_pmo_control_room",
+      "fleet_director",
+    ]);
+    expect(isRegiaRootCatalogRoleKey("attacker_role")).toBe(false);
   });
 });

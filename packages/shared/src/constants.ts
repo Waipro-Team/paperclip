@@ -24,10 +24,10 @@ export const AGENT_STATUSES = [
 ] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
-export const REGIA_ROOT_CATALOG_ROLE_KEYS = [
+export const REGIA_ROOT_CATALOG_ROLE_KEYS = Object.freeze([
   "director_pmo_control_room",
   "fleet_director",
-] as const;
+] as const);
 export type RegiaRootCatalogRoleKey = (typeof REGIA_ROOT_CATALOG_ROLE_KEYS)[number];
 
 export function isRegiaRootCatalogRoleKey(value: unknown): value is RegiaRootCatalogRoleKey {
