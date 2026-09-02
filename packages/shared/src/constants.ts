@@ -24,6 +24,17 @@ export const AGENT_STATUSES = [
 ] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
+export const REGIA_ROOT_CATALOG_ROLE_KEYS = [
+  "director_pmo_control_room",
+  "fleet_director",
+] as const;
+export type RegiaRootCatalogRoleKey = (typeof REGIA_ROOT_CATALOG_ROLE_KEYS)[number];
+
+export function isRegiaRootCatalogRoleKey(value: unknown): value is RegiaRootCatalogRoleKey {
+  return typeof value === "string" &&
+    (REGIA_ROOT_CATALOG_ROLE_KEYS as readonly string[]).includes(value);
+}
+
 export const AGENT_ADAPTER_TYPES = [
   "process",
   "http",

@@ -20,6 +20,7 @@ import {
 } from "@paperclipai/db";
 import {
   getAgentWorkEligibility,
+  isRegiaRootCatalogRoleKey,
   type RegiaIntakeRequest,
   type RegiaIntakeResponse,
 } from "@paperclipai/shared";
@@ -84,24 +85,10 @@ function isSha256(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
-function normalizedIdentity(value: string | null | undefined) {
-  return value?.trim().toLocaleLowerCase("it-IT").replace(/[^a-z0-9]+/g, " ").trim() ?? "";
-}
-
 function isRegiaCatalogIdentity(agent: {
-  name: string;
-  role: string;
-  title: string | null;
   metadata: Record<string, unknown> | null;
 }) {
-  const catalogRole = normalizedIdentity(
-    typeof agent.metadata?.catalogRoleKey === "string" ? agent.metadata.catalogRoleKey : null,
-  );
-  const identities = [agent.name, agent.title].map(normalizedIdentity);
-  return normalizedIdentity(agent.role) === "ceo" || normalizedIdentity(agent.role) === "executive" ||
-    catalogRole === "fleet director" || catalogRole === "director pmo control room" ||
-    identities.includes("regia") || identities.includes("fleet director") ||
-    identities.includes("director pmo control room");
+  return isRegiaRootCatalogRoleKey(agent.metadata?.catalogRoleKey);
 }
 
 function assertNonSensitiveIntake(input: RegiaIntakeRequest) {
@@ -488,7 +475,7 @@ export function regiaIntakeService(db: Db) {
       const regia = companyAgents.find((agent) => agent.id === input.binding.regiaAgentId) ?? null;
       if (!regia || regia.reportsTo !== null || !isRegiaCatalogIdentity(regia) ||
         !getAgentWorkEligibility({ agent: regia, agents: companyAgents }).invokable) {
-        throw unprocessable("The explicit Regia/Fleet Director is not an invokable company executive");
+        throw unprocessable("The explicit Regia root is not an invokable canonical catalog identity");
       }
 
       const project = await tx.select().from(projects).where(and(
