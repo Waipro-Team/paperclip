@@ -161,7 +161,14 @@ export function prepareBundledPackage(sourceDir, destinationDir) {
   execFileSync(
     "npm",
     ["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
-    { cwd: destinationDir, stdio: "inherit" },
+    {
+      cwd: destinationDir,
+      stdio: "inherit",
+      // npm pack/publish --dry-run exposes its setting to lifecycle children.
+      // This nested install materializes the bundle being inspected, so it
+      // must execute even while the outer packaging command is only a preview.
+      env: { ...process.env, npm_config_dry_run: "false" },
+    },
   );
   writeFileSync(deployedPackagePath, `${JSON.stringify(publishManifest, null, 2)}\n`);
   applyBundledDependencyPatches(destinationDir, bundledDependencies);

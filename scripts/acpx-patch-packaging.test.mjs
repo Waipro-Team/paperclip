@@ -215,6 +215,7 @@ mkdir -p "$destination/node_modules/.pnpm"
 set -euo pipefail
 printf 'npm %s\\n' "$*" >> "$FAKE_CALL_LOG"
 [ "$*" = "install --omit=dev --ignore-scripts --no-audit --no-fund" ]
+[ "\${npm_config_dry_run:-}" = "false" ]
 mkdir -p node_modules/acpx/dist
 printf 'unpatched runtime\\n' > node_modules/acpx/dist/runtime.js
 printf '{"name":"acpx","version":"0.12.0"}\\n' > node_modules/acpx/package.json
@@ -250,6 +251,7 @@ printf 'patched onAgentStderr runtime\\n' > "$target/dist/runtime.js"
         PATH: `${binDir}:${process.env.PATH}`,
         FAKE_CALL_LOG: callLog,
         FAKE_SOURCE_PACKAGE: join(sourceDir, "package.json"),
+        npm_config_dry_run: "true",
       },
       stdio: "pipe",
     },
