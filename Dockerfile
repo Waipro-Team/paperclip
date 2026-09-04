@@ -112,6 +112,18 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --chown=node:node --from=build /app /app
 
+# The embedded PostgreSQL package ships patch-level OpenSSL libraries while
+# postgres loads their major sonames. Prepare those aliases in the immutable
+# image layer while still root: production may remap `node` to a different
+# runtime UID, at which point /app intentionally remains read-only.
+RUN set -eu; \
+  /app/packages/db/node_modules/.bin/tsx -e 'import("./packages/db/src/embedded-postgres-native.ts").then(({ prepareEmbeddedPostgresNativeRuntime }) => prepareEmbeddedPostgresNativeRuntime())'; \
+  lib_dir="$(find /app/node_modules/.pnpm -path '*/@embedded-postgres/linux-*/native/lib' -type d -print -quit)"; \
+  test -n "$lib_dir"; \
+  test -L "$lib_dir/libcrypto.so.1"; \
+  test -L "$lib_dir/libssl.so.1"; \
+  find "$lib_dir" -maxdepth 1 -type l -exec chown -h node:node {} +
+
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \
