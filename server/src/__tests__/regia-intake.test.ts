@@ -95,6 +95,7 @@ describePg("regiaIntakeService", () => {
       role: "ceo",
       status: "idle",
       defaultEnvironmentId: ENVIRONMENT_ID,
+      metadata: { catalogRoleKey: "director_pmo_control_room" },
     });
     await db.insert(projects).values({
       id: PROJECT_ID,
@@ -234,7 +235,7 @@ describePg("regiaIntakeService", () => {
     await seed();
     const service = regiaIntakeService(db);
     await expect(service.accept(COMPANY_B, request, { actorType: "user", actorId: "cristian" }))
-      .rejects.toThrow("explicit Regia/Fleet Director");
+      .rejects.toThrow("canonical catalog identity");
 
     await db.insert(agents).values({
       companyId: COMPANY_A,
@@ -257,9 +258,39 @@ describePg("regiaIntakeService", () => {
     }, {
       actorType: "user",
       actorId: "cristian",
-    })).rejects.toThrow("explicit Regia/Fleet Director");
+    })).rejects.toThrow("canonical catalog identity");
     expect(await db.select().from(issues)).toHaveLength(0);
     expect(await db.select().from(activityLog)).toHaveLength(0);
+  });
+
+  it("rejects legacy names, generic PMO role classes and catalog key mismatches", async () => {
+    await seed();
+    const service = regiaIntakeService(db);
+    const invalidMetadata: Array<Record<string, unknown> | null> = [
+      null,
+      { roleClass: "pmo" },
+      { roleClass: "pmo", catalogRoleKey: "pmo" },
+      { roleClass: "pmo", catalogRoleKey: "director pmo control room" },
+      { roleClass: "pmo", catalogRoleKey: "director_pmo_control_room_legacy" },
+    ];
+
+    for (const [index, metadata] of invalidMetadata.entries()) {
+      await db.update(agents).set({
+        name: "Regia",
+        role: "executive",
+        title: "Director PMO & Control Room",
+        metadata,
+      }).where(eq(agents.id, REGIA_ID));
+      await expect(service.accept(COMPANY_A, {
+        ...request,
+        idempotencyKey: `board:legacy-pmo:${index}`,
+      }, { actorType: "user", actorId: "cristian" }))
+        .rejects.toThrow("canonical catalog identity");
+    }
+
+    expect(await db.select().from(issues)).toHaveLength(0);
+    expect(await db.select().from(activityLog)).toHaveLength(0);
+    expect(await db.select().from(approvals)).toHaveLength(0);
   });
 
   it("accepts an explicit root Fleet Director deterministically when another executive exists", async () => {

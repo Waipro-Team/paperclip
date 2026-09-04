@@ -12,6 +12,9 @@ const mockEnvironmentList = vi.hoisted(() => vi.fn());
 const mockEnvironmentSecretRefs = vi.hoisted(() => vi.fn());
 const mockProjectWorkspaces = vi.hoisted(() => vi.fn());
 const mockAccept = vi.hoisted(() => vi.fn());
+const mockApprovalsList = vi.hoisted(() => vi.fn());
+const mockApprove = vi.hoisted(() => vi.fn());
+const mockReject = vi.hoisted(() => vi.fn());
 
 vi.mock("../api/environments", () => ({
   environmentsApi: {
@@ -22,6 +25,14 @@ vi.mock("../api/environments", () => ({
 
 vi.mock("../api/regiaIntake", () => ({
   regiaIntakeApi: { accept: mockAccept },
+}));
+
+vi.mock("../api/approvals", () => ({
+  approvalsApi: {
+    list: mockApprovalsList,
+    approve: mockApprove,
+    reject: mockReject,
+  },
 }));
 
 vi.mock("../api/projects", () => ({
@@ -190,10 +201,36 @@ describe("RegiaObjectiveCard", () => {
     mockEnvironmentSecretRefs.mockReset();
     mockProjectWorkspaces.mockReset();
     mockAccept.mockReset();
+    mockApprovalsList.mockReset();
+    mockApprove.mockReset();
+    mockReject.mockReset();
     mockEnvironmentList.mockResolvedValue([readyEnvironment()]);
     mockEnvironmentSecretRefs.mockResolvedValue({ refs: [readySecretRef()] });
     mockProjectWorkspaces.mockResolvedValue([readyWorkspace()]);
     mockAccept.mockResolvedValue(response);
+    const pendingApproval = {
+      id: APPROVAL_ID,
+      companyId: COMPANY_ID,
+      type: "regia_execution_policy",
+      status: "pending",
+      payload: {
+        issueId: ROOT_TASK_ID,
+        receiptActivityId: ACTIVITY_ID,
+        requestFingerprint: "a".repeat(64),
+        bindingDigest: "b".repeat(64),
+        policyDigest: "c".repeat(64),
+      },
+      requestedByUserId: "cristian",
+      requestedByAgentId: null,
+      decisionNote: null,
+      decidedByUserId: null,
+      decidedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    mockApprovalsList.mockResolvedValue([pendingApproval]);
+    mockApprove.mockResolvedValue({ ...pendingApproval, status: "approved" });
+    mockReject.mockResolvedValue({ ...pendingApproval, status: "rejected" });
   });
 
   afterEach(async () => {
@@ -295,7 +332,7 @@ describe("RegiaObjectiveCard", () => {
         },
       }),
     );
-    expect(panel.textContent).toContain("Bloccato: configurazione policy richiesta");
+    expect(panel.textContent).toContain("In attesa di approvazione board");
     expect(panel.textContent).toContain("Policy configurata");
     expect(panel.textContent).toContain("Esecuzione autorizzata");
     expect(panel.textContent).toContain("Intake registrato");
@@ -309,6 +346,83 @@ describe("RegiaObjectiveCard", () => {
     expect(panel.textContent).not.toContain(GOAL_ID);
     expect(panel.textContent).not.toContain(PROJECT_ID);
     expect(panel.textContent).not.toContain(ROOT_TASK_ID);
+    expect(panel.textContent).not.toContain(ACTIVITY_ID);
+    expect(panel.textContent).not.toContain(APPROVAL_ID);
+    expect(panel.textContent).not.toContain("requestFingerprint");
+    expect(panel.textContent).not.toContain("bindingDigest");
     expect(mockProjectWorkspaces).toHaveBeenCalledWith(PROJECT_ID, COMPANY_ID);
+  });
+
+  it("lets the board approve the exact company-scoped Regia gate", async () => {
+    const panel = await renderCard();
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
+    await setTextarea("Completa la Regia verificata");
+    await act(async () => submitButton().click());
+    await waitForUi(() => {
+      expect(panel.textContent).toContain("In attesa di approvazione board");
+      expect(panel.textContent).toContain("Approva esecuzione");
+      const button = [...panel.querySelectorAll("button")].find(
+        (candidate) => candidate.textContent === "Approva esecuzione",
+      );
+      expect(button?.disabled).toBe(false);
+    });
+
+    const approveButton = [...panel.querySelectorAll("button")].find(
+      (button) => button.textContent === "Approva esecuzione",
+    )!;
+    await act(async () => approveButton.click());
+    await waitForUi(() => expect(panel.textContent).toContain("Approvata: esecuzione autorizzata"));
+
+    expect(mockApprovalsList).toHaveBeenCalledWith(COMPANY_ID);
+    expect(mockApprove).toHaveBeenCalledWith(APPROVAL_ID);
+    expect(mockReject).not.toHaveBeenCalled();
+    expect(panel.textContent).toContain("Root task autorizzato");
+    expect(panel.textContent).not.toContain("Approva esecuzione");
+  });
+
+  it("keeps a rejected Regia gate visibly blocked", async () => {
+    const panel = await renderCard();
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
+    await setTextarea("Completa la Regia verificata");
+    await act(async () => submitButton().click());
+    await waitForUi(() => {
+      const button = [...panel.querySelectorAll("button")].find(
+        (candidate) => candidate.textContent === "Rifiuta",
+      );
+      expect(button?.disabled).toBe(false);
+    });
+
+    const rejectButton = [...panel.querySelectorAll("button")].find(
+      (button) => button.textContent === "Rifiuta",
+    )!;
+    await act(async () => rejectButton.click());
+    await waitForUi(() => expect(panel.textContent).toContain("Rifiutata: esecuzione bloccata"));
+
+    expect(mockReject).toHaveBeenCalledWith(APPROVAL_ID);
+    expect(panel.textContent).toContain("Root task bloccato");
+    expect(panel.textContent).not.toContain("Approva esecuzione");
+  });
+
+  it("fails closed on a company-scope denial without exposing API or receipt details", async () => {
+    mockApprovalsList.mockRejectedValue(new ApiError("foreign-company-secret", 403, {
+      token: "must-not-render",
+    }));
+    const panel = await renderCard();
+    await waitForUi(() => expect(submitButton().disabled).toBe(false));
+    await setTextarea("Completa la Regia verificata");
+    await act(async () => submitButton().click());
+    await waitForUi(() => {
+      expect(panel.textContent).toContain("Non hai accesso all’approvazione Regia di questa organizzazione.");
+    });
+
+    const approveButton = [...panel.querySelectorAll("button")].find(
+      (button) => button.textContent === "Approva esecuzione",
+    )!;
+    expect(approveButton.disabled).toBe(true);
+    expect(mockApprove).not.toHaveBeenCalled();
+    expect(panel.textContent).not.toContain("foreign-company-secret");
+    expect(panel.textContent).not.toContain("must-not-render");
+    expect(panel.textContent).not.toContain(APPROVAL_ID);
+    expect(panel.textContent).not.toContain(ACTIVITY_ID);
   });
 });
