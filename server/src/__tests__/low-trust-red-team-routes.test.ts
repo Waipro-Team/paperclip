@@ -174,6 +174,8 @@ function createApp(db: Db, actor: Express.Request["actor"]) {
   return app;
 }
 
+const TEST_OPENCLAW_AGENT_ID = "paperclip-low-trust-test-agent";
+
 async function createControlledGatewayServer() {
   const server = createServer();
   const wss = new WebSocketServer({ server });
@@ -214,9 +216,28 @@ async function createControlledGatewayServer() {
               type: "hello-ok",
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
-              features: { methods: ["connect", "agent", "agent.wait"], events: ["agent"] },
+              features: { methods: ["connect", "config.get", "agent", "agent.wait"], events: ["agent"] },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: TEST_OPENCLAW_AGENT_ID }],
+                },
+              },
             },
           }),
         );
@@ -1424,6 +1445,7 @@ describeEmbeddedPostgres("low-trust red-team HTTP route regression suite", () =>
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
