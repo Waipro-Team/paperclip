@@ -36,6 +36,7 @@ const apiPrefixes: Record<string, string> = {
   "execution-workspaces.ts": "/api",
   "file-resources.ts": "/api",
   "folders.ts": "/api",
+  "github-project-reconciliation.ts": "/api",
   "goals.ts": "/api",
   "health.ts": "/api/health",
   "inbox-agent-policy.ts": "/api",
@@ -51,8 +52,10 @@ const apiPrefixes: Record<string, string> = {
   "plugins.ts": "/api",
   "projects.ts": "/api",
   "resource-memberships.ts": "/api",
+  "regia-intake.ts": "/api",
   "routines.ts": "/api",
   "secrets.ts": "/api",
+  "session-observability.ts": "/api",
   "sidebar-badges.ts": "/api",
   "sidebar-preferences.ts": "/api",
   "summary-slots.ts": "/api",
@@ -218,6 +221,21 @@ describe("openapi routes", () => {
     });
     expect(res.body.paths["/api/companies/{companyId}/folders"].post.responses["201"]).toBeDefined();
     expect(
+      res.body.paths["/api/companies/{companyId}/github-project-v2-reconciliation"].post.summary,
+    ).toBe("Reconcile the canonical REGIA360 GitHub Project");
+    expect(
+      Object.keys(
+        res.body.paths["/api/companies/{companyId}/github-project-v2-reconciliation"].post.responses,
+      ).sort(),
+    ).toEqual(["200", "400", "401", "403", "409", "422"]);
+    expect(res.body.paths["/api/companies/{companyId}/regia/intake"].post.responses["201"]).toBeDefined();
+    expect(
+      Object.keys(res.body.paths["/api/companies/{companyId}/regia/intake"].post.responses).sort(),
+    ).toEqual(["200", "201", "400", "401", "403", "409", "422"]);
+    expect(res.body.paths["/api/companies/{companyId}/session-observability"].get.summary).toBe(
+      "Get the company-scoped agent session observability projection",
+    );
+    expect(
       Object.keys(
         res.body.paths["/api/issues/{id}/work-products/{workProductId}/review-document"].post.responses,
       ).sort(),
@@ -301,6 +319,17 @@ describe("openapi routes", () => {
     expect(spec.paths["/api/execution-workspaces/{id}/reconcile-branch"].post["x-paperclip-authorization"]).toEqual({
       actor: "board",
     });
+    expect(spec.paths["/api/companies/{companyId}/github-project-v2-reconciliation"].post.security).toEqual([
+      { BoardSessionAuth: [] },
+      { BoardApiKeyAuth: [] },
+    ]);
+    expect(spec.paths["/api/companies/{companyId}/regia/intake"].post["x-paperclip-authorization"]).toEqual({
+      actor: "board",
+    });
+    expect(spec.paths["/api/companies/{companyId}/session-observability"].get.security).toEqual([
+      { BoardSessionAuth: [] },
+      { BoardApiKeyAuth: [] },
+    ]);
     expect(spec.paths["/api/companies/{companyId}/cost-events"].post.responses["201"]).toBeDefined();
     expect(spec.paths["/api/companies/{companyId}/cost-events"].post.responses["403"]).toBeDefined();
     expect(spec.paths["/api/instance/database-backups"].post.responses["201"]).toBeDefined();
