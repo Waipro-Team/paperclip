@@ -23,7 +23,7 @@ import type {
   SessionObservabilityStatus,
   SessionReceiptState,
 } from "@paperclipai/shared";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { createFeedbackRedactionState, sanitizeFeedbackText } from "./feedback-redaction.js";
 
 const CURRENT_ISSUE_STATUSES = ["in_progress", "blocked", "in_review", "todo"] as const;
@@ -92,12 +92,6 @@ const MAX_OPERATIONAL_LABEL_LENGTH = 256;
 const PRIVATE_WORKSPACE_LABEL = "Workspace riservato";
 const SENSITIVE_OPERATIONAL_ASSIGNMENT_RE =
   /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth(?:[-_]?token)?|token|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connection[-_]?string)\s*[:=]/i;
-// Bounds secondary/supplementary signal queries (activity log, heartbeat
-// events, comments, interactions). Deliberately NOT applied to the primary
-// heartbeat-run history query below, so a quiet agent keeps its last known
-// status instead of appearing to have none.
-const RECENT_SOURCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
-
 type AgentRow = {
   id: string;
   name: string;
@@ -664,7 +658,6 @@ export function sessionObservabilityService(db: Db) {
       createdAt: heartbeatRuns.createdAt,
       updatedAt: heartbeatRuns.updatedAt,
     };
-    const recentCutoff = new Date(Date.now() - RECENT_SOURCE_WINDOW_MS);
     const agentRows = await db
       .select({
         id: agents.id,
@@ -776,7 +769,6 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(activityLog.companyId, companyId),
           isNotNull(activityLog.agentId),
-          gte(activityLog.createdAt, recentCutoff),
         ))
         .orderBy(desc(activityLog.createdAt), activityLog.id)
         .limit(MAX_SOURCE_ROWS),
@@ -789,10 +781,7 @@ export function sessionObservabilityService(db: Db) {
           createdAt: heartbeatRunEvents.createdAt,
         })
         .from(heartbeatRunEvents)
-        .where(and(
-          eq(heartbeatRunEvents.companyId, companyId),
-          gte(heartbeatRunEvents.createdAt, recentCutoff),
-        ))
+        .where(eq(heartbeatRunEvents.companyId, companyId))
         .orderBy(desc(heartbeatRunEvents.createdAt), desc(heartbeatRunEvents.id))
         .limit(MAX_SOURCE_ROWS),
       db
@@ -810,7 +799,6 @@ export function sessionObservabilityService(db: Db) {
           eq(issueComments.companyId, companyId),
           isNotNull(issueComments.authorAgentId),
           isNull(issueComments.deletedAt),
-          gte(issueComments.createdAt, recentCutoff),
         ))
         .orderBy(desc(issueComments.createdAt), issueComments.id)
         .limit(MAX_MESSAGE_ROWS),
@@ -836,7 +824,6 @@ export function sessionObservabilityService(db: Db) {
         .where(and(
           eq(issueThreadInteractions.companyId, companyId),
           isNotNull(issueThreadInteractions.createdByAgentId),
-          gte(issueThreadInteractions.createdAt, recentCutoff),
         ))
         .orderBy(desc(issueThreadInteractions.createdAt), issueThreadInteractions.id)
         .limit(MAX_MESSAGE_ROWS),

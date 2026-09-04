@@ -51,7 +51,7 @@ describeEmbeddedPostgres("session observability query (postgres)", () => {
     await tempDb?.cleanup();
   });
 
-  it("keeps active runs visible after the 30-day historical cutoff and company-scoped", async () => {
+  it("keeps active runs visible beyond 30 days and company-scoped", async () => {
     const companyId = randomUUID();
     const otherCompanyId = randomUUID();
     await db.insert(companies).values([

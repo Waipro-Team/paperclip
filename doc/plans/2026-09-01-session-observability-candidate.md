@@ -35,9 +35,9 @@ Status: candidate only; not deployed or connected to a live service.
 - A node's current task is selected only from `in_progress` issues. `todo` and
   `backlog` are never used as a fallback current task.
 - Active heartbeat runs (`running`, `queued`, and `scheduled_retry`) are read
-  independently from the 30-day historical window, merged with recent runs,
-  and deduplicated by run ID. An active run therefore remains visible after it
-  crosses the historical cutoff.
+  independently from the most-recent bounded run slice, merged with that
+  slice, and deduplicated by run ID. An older active run therefore remains
+  visible even when it is outside the latest bounded result set.
 - If a run changes state between the active and recent queries, duplicate IDs
   now retain the row with the newest `updated_at`/`created_at` snapshot. A
   newer terminal observation therefore replaces a stale active observation
@@ -87,8 +87,8 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 - Active-run follow-up: 15 relevant server tests passed (8 service, 6 route,
   and 1 PostgreSQL query regression). The PostgreSQL regression ran in an
   isolated non-root container and seeded `running`, `queued`, and
-  `scheduled_retry` rows 45 days old, newer terminal history for the same
-  agents, and an active row in a different company. All three target-company
+  `scheduled_retry` rows created 45 days earlier, newer terminal history for
+  the same agents, and an active row in a different company. All three target-company
   agents remained visible with the expected phases, while the other-company
   agent was absent.
 - Cross-query transition follow-up: 15 direct server tests passed and the new
@@ -126,19 +126,26 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
   proved prompt/token/path-like event types absent from serialized output.
 - Query bounds: 500 agents, 1,000 in-progress issues, up to 2,000 active plus
   2,000 recent heartbeat rows before ID deduplication, 2,000 activity/event/relation
-  rows, 200 comment/interaction rows, and 24 returned receipts. The 30-day
-  window still bounds historical heartbeat rows and all high-frequency
-  activity/event/message sources; active heartbeat rows bypass only that time
-  cutoff and retain the existing company/status and company/created-at index
-  predicates.
+  rows, 200 comment/interaction rows, and 24 returned receipts. The observability
+  history is bounded by company scope, ordering, and row count, not by record
+  age. This applies to heartbeat history and the activity, event, comment, and
+  interaction sources. It preserves historical operational signals without
+  creating an unbounded response.
 - Migration `0234_sleepy_sentry.sql` adds `(company_id, created_at DESC)` indexes
-  for `issue_comments` and `issue_thread_interactions`; the existing heartbeat
-  index covers the new run lookback.
-- PostgreSQL 16 proof used isolated disposable tables with 200,000 rows each and
-  the exact query ordering/predicates. `EXPLAIN (ANALYZE, BUFFERS)` selected the
-  expected bitmap index for all three sources. Execution time was 9.998 ms for
-  comments, 9.329 ms for interactions, and 7.181 ms for heartbeat runs. The
-  proof container was removed after the run; production data was not touched.
+  for `issue_comments` and `issue_thread_interactions`; existing indexes cover
+  `(company_id, created_at)` for `activity_log` and `heartbeat_run_events`.
+- Historical PostgreSQL 16 performance evidence used isolated disposable tables
+  with 200,000 rows each and the earlier 30-day predicates. It selected the
+  expected bitmap indexes, but it is not performance proof for the current
+  age-unbounded, row-count-bounded query shape. Before deployment, the current
+  predicates require `EXPLAIN (ANALYZE, BUFFERS)` against disposable historical
+  data with low selectivity for non-null agent fields. Partial indexes or a
+  per-agent latest-row strategy must be evaluated if that gate does not meet the
+  staging latency budget. Production data must not be used for this proof.
+- The current global row caps can be saturated by a small number of noisy
+  agents, leaving an older last signal unavailable for quieter agents. This is
+  an accepted candidate limitation, not a completeness guarantee; resolving it
+  requires a separate per-agent latest-row query design and regression coverage.
 - Polling uses the existing cross-tab leader/cache coordinator, pauses in hidden
   tabs, slows when unfocused, and retries non-authorization errors twice with
   bounded exponential backoff. A 401/403 disables interval polling; successful
@@ -168,9 +175,12 @@ resolver, or receiving-run evidence. Reassignment is never used as receipt proof
 4. Open `/agents/sessions` and verify the owner → phase → blocker → receipt chain,
    refresh behavior, empty/error states, and that no body/prompt/human identifier
    appears in the browser response or rendered DOM.
-5. Observe endpoint latency and error rate under staging data volume before any
-   promotion. Promotion requires an explicit separate approval and a clean
-   repository-wide token-gate decision.
+5. Run `EXPLAIN (ANALYZE, BUFFERS)` for the current age-unbounded predicates on
+   disposable historical, low-selectivity data; record the selected indexes,
+   scanned rows, and execution time for each source.
+6. Observe endpoint latency and error rate under staging data volume before any
+   promotion. Promotion requires an explicit separate approval, acceptable
+   query-plan evidence, and a clean repository-wide token-gate decision.
 
 ## Rollback plan
 
