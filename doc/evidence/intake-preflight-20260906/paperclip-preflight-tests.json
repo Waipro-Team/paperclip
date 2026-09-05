@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-09-05T22:37:11.606631+00:00",
+  "finishedAt": "2026-09-05T22:37:59.388098+00:00",
+  "durationSeconds": 47.78071560198441,
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "--config",
+    "vitest.config.ts",
+    "--configLoader",
+    "runner",
+    "--cache=false",
+    "src/__tests__/regia-intake.test.ts",
+    "src/__tests__/regia-intake-route.test.ts",
+    "src/__tests__/regia-intake-preflight.test.ts",
+    "src/__tests__/openapi-routes.test.ts",
+    "src/__tests__/secrets-service.test.ts"
+  ],
+  "cwd": "/root/work/paperclip-portal360-reconcile-20260902/server",
+  "runAsUid": 10001,
+  "exitCode": 0,
+  "status": "PASS",
+  "logPolicy": "ANSI removed; successful test outcomes and aggregate summary only; expected negative-test error logs omitted; no request/credential/provider payloads retained",
+  "scope": "Targeted candidate tests; embedded PostgreSQL uses disposable fixture DB; no live services invoked",
+  "tests": {
+    "passed": 146,
+    "skipped": 0,
+    "files": 5
+  }
+}

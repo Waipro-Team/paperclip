@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
@@ -24,6 +24,7 @@ import {
   projectWorkspaces,
   projects,
   userSecretDefinitions,
+  secretAccessEvents,
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { assertRegiaIntakeExecutionBinding, regiaIntakeService } from "../services/regia-intake.js";
@@ -51,6 +52,8 @@ describePg("regiaIntakeService", () => {
   }, 90_000);
 
   afterEach(async () => {
+    vi.restoreAllMocks();
+    await db.delete(secretAccessEvents);
     await db.delete(heartbeatRunEvents);
     await db.delete(activityLog);
     await db.delete(environmentLeases);
@@ -179,6 +182,149 @@ describePg("regiaIntakeService", () => {
     expect(result).toMatchObject({ applied: true, approval: { status: "approved" } });
     return approval!.id;
   }
+
+
+  // Snapshot domain state (never credential material); auth last-used timestamps
+  // belong to middleware and are deliberately outside the preflight service.
+  async function domainSnapshot() {
+    const tables = [activityLog, agentWakeupRequests, approvals, environmentLeases, goals,
+      heartbeatRuns, issueCreateIdempotencyKeys, issueApprovals, issues, projectGoals, secretAccessEvents];
+    return {
+      tables: await Promise.all(tables.map((table) => db.select().from(table))),
+      companies: await db.select({ id: companies.id, counter: companies.issueCounter }).from(companies),
+      projects: await db.select({ id: projects.id, goalId: projects.goalId, updatedAt: projects.updatedAt }).from(projects),
+      secrets: await db.select({
+        id: companySecrets.id, lastResolvedAt: companySecrets.lastResolvedAt, updatedAt: companySecrets.updatedAt,
+      }).from(companySecrets),
+    };
+  }
+
+  it("preflights with actual PostgreSQL READ ONLY and metadata-only column permissions", async () => {
+    await seed();
+    const before = await domainSnapshot();
+    // A fresh fixture role cannot select material, provider metadata, or any
+    // domain write. Successful real queries therefore prove column projections.
+    await db.execute(sql`create role intake_preflight_metadata nologin`);
+    await db.execute(sql`grant usage on schema public to intake_preflight_metadata`);
+    await db.execute(sql`grant select on agents, projects, project_workspaces, environments,
+      company_secret_bindings to intake_preflight_metadata`);
+    await db.execute(sql`grant select(id, company_id, scope, status, deleted_at, latest_version)
+      on company_secrets to intake_preflight_metadata`);
+    await db.execute(sql`grant select(secret_id, version, status, revoked_at)
+      on company_secret_versions to intake_preflight_metadata`);
+    const transact = db.transaction.bind(db);
+    const settings: unknown[] = [];
+    const spy = vi.spyOn(db, "transaction").mockImplementation((callback, options) =>
+      transact(async (tx) => {
+        await tx.execute(sql`set local role intake_preflight_metadata`);
+        const [state] = await tx.execute(sql`select current_setting('transaction_isolation') as isolation,
+          current_setting('transaction_read_only') as read_only`);
+        settings.push(state);
+        return callback(tx);
+      }, options));
+    try {
+      const result = await regiaIntakeService(db).preflight(COMPANY_A, { binding: request.binding });
+      expect(result).toEqual(request.binding);
+      expect(settings).toEqual([{ isolation: "repeatable read", read_only: "on" }]);
+      expect(await domainSnapshot()).toEqual(before);
+      // The grant really denies selecting the encrypted material, independently
+      // of the preflight's query shape.
+      await expect(transact(async (tx) => {
+        await tx.execute(sql`set local role intake_preflight_metadata`);
+        await tx.execute(sql`select material from company_secret_versions`);
+      })).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+      await db.execute(sql`drop owned by intake_preflight_metadata`);
+      await db.execute(sql`drop role intake_preflight_metadata`);
+    }
+  });
+
+  it("keeps a repeatable snapshot and revalidates a later accept instead of trusting preflight", async () => {
+    await seed();
+    const transact = db.transaction.bind(db);
+    const spy = vi.spyOn(db, "transaction").mockImplementation((callback, options) =>
+      transact(async (tx) => {
+        // Start the real snapshot, then change current state on a different connection.
+        await tx.select({ id: projects.id }).from(projects);
+        await db.update(projects).set({ executionWorkspacePolicy: {} }).where(eq(projects.id, PROJECT_ID));
+        return callback(tx);
+      }, options));
+    await expect(regiaIntakeService(db).preflight(COMPANY_A, { binding: request.binding }))
+      .resolves.toEqual(request.binding);
+    spy.mockRestore();
+    const before = await domainSnapshot();
+    await expect(regiaIntakeService(db).accept(COMPANY_A, request, { actorType: "user", actorId: "cristian" }))
+      .rejects.toThrow("not pinned");
+    expect(await domainSnapshot()).toEqual(before);
+    await expect(regiaIntakeService(db).preflight(COMPANY_A, { binding: request.binding }))
+      .rejects.toThrow("not pinned");
+  });
+
+  it("preflight approval grants no execution and subsequent intake still creates a blocked task", async () => {
+    await seed();
+    const service = regiaIntakeService(db);
+    const before = await domainSnapshot();
+    await service.preflight(COMPANY_A, { binding: request.binding });
+    expect(await domainSnapshot()).toEqual(before);
+    const result = await service.accept(COMPANY_A, request, { actorType: "user", actorId: "cristian" });
+    expect(result).toMatchObject({ executionAuthorized: false, policyConfigured: false, approvalStatus: "pending" });
+    await expect(assertRegiaIntakeExecutionBinding(db, {
+      companyId: COMPANY_A, issueId: result.rootTaskId,
+      selectedEnvironmentId: ENVIRONMENT_ID, assertCompanyBinding: true,
+    })).rejects.toThrow("policy is not configured");
+    expect(await db.select().from(agentWakeupRequests)).toEqual([]);
+    expect(await db.select().from(environmentLeases)).toEqual([]);
+  });
+
+  it.each([
+    "foreign company", "project tenant", "workspace tenant", "workspace project", "non-root agent",
+    "catalog mismatch", "paused agent", "environment inactive", "project environment", "agent environment",
+    "secret tenant", "secret inactive", "secret deleted", "secret binding", "missing version",
+    "disabled version", "revoked version", "static lease gate",
+  ])("preflight rejects %s without domain mutations", async (scenario) => {
+    await seed();
+    switch (scenario) {
+      case "project tenant": await db.update(projects).set({ companyId: COMPANY_B }); break;
+      case "workspace tenant": await db.update(projectWorkspaces).set({ companyId: COMPANY_B }); break;
+      case "workspace project": {
+        const [other] = await db.insert(projects).values({ companyId: COMPANY_A, name: "Other" }).returning();
+        await db.update(projectWorkspaces).set({ projectId: other!.id }); break;
+      }
+      case "non-root agent": {
+        const [other] = await db.insert(agents).values({ companyId: COMPANY_A, name: "Parent", role: "ceo" }).returning();
+        await db.update(agents).set({ reportsTo: other!.id }).where(eq(agents.id, REGIA_ID)); break;
+      }
+      case "catalog mismatch": await db.update(agents).set({ metadata: { catalogRoleKey: "engineer" } }); break;
+      case "paused agent": await db.update(agents).set({ status: "paused" }); break;
+      case "environment inactive": await db.update(environments).set({ status: "disabled" }); break;
+      case "project environment": await db.update(projects).set({ executionWorkspacePolicy: {} }); break;
+      case "agent environment": await db.update(agents).set({ defaultEnvironmentId: null }); break;
+      case "secret tenant": await db.update(companySecrets).set({ companyId: COMPANY_B }); break;
+      case "secret inactive": await db.update(companySecrets).set({ status: "disabled" }); break;
+      case "secret deleted": await db.update(companySecrets).set({ deletedAt: new Date() }); break;
+      case "secret binding": await db.delete(companySecretBindings); break;
+      case "missing version": await db.update(companySecrets).set({ latestVersion: 2 }); break;
+      case "disabled version": await db.update(companySecretVersions).set({ status: "disabled" }); break;
+      case "revoked version": await db.update(companySecretVersions).set({ revokedAt: new Date() }); break;
+      case "static lease gate":
+        await db.update(companySecretBindings).set({ projectionClass: "class_3_static_lease" }); break;
+    }
+    const before = await domainSnapshot();
+    await expect(regiaIntakeService(db).preflight(scenario === "foreign company" ? COMPANY_B : COMPANY_A,
+      { binding: request.binding })).rejects.toMatchObject({ status: 422 });
+    expect(await domainSnapshot()).toEqual(before);
+  });
+
+  it("keeps an explicit secret version selector and denies a selector without an exact binding", async () => {
+    await seed();
+    const binding = { ...request.binding, credentialSecretRef: { ...request.binding.credentialSecretRef, version: 1 } };
+    await expect(regiaIntakeService(db).preflight(COMPANY_A, { binding })).rejects.toThrow("exactly once");
+    await db.update(companySecretBindings).set({ versionSelector: "1" });
+    const before = await domainSnapshot();
+    await expect(regiaIntakeService(db).preflight(COMPANY_A, { binding })).resolves.toEqual(binding);
+    expect(await domainSnapshot()).toEqual(before);
+  });
 
   it("creates one company-scoped root task, receipt and no wake, then reuses all ids", async () => {
     await seed();

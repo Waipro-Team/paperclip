@@ -1788,7 +1788,15 @@ export function secretService(db: Db | DbTransaction) {
     version: number | "latest",
     context?: SecretBindingContext,
   ): Promise<number> {
-    const secret = await getById(secretId);
+    // Version checks are metadata-only, including read-only intake preflights.
+    // Never select provider configuration or encrypted/plain credential material.
+    const secret = await db.select({
+      id: companySecrets.id,
+      companyId: companySecrets.companyId,
+      latestVersion: companySecrets.latestVersion,
+      status: companySecrets.status,
+    }).from(companySecrets).where(eq(companySecrets.id, secretId))
+      .then((rows) => rows[0] ?? null);
     if (!secret) throw notFound("Secret not found");
     if (secret.companyId !== companyId) throw unprocessable("Secret must belong to same company");
     const resolvedVersion = version === "latest" ? secret.latestVersion : version;
@@ -1799,7 +1807,13 @@ export function secretService(db: Db | DbTransaction) {
       throw unprocessable("Secret is not active", { code: "secret_inactive" });
     }
     await assertBindingContext(companyId, secret.id, context);
-    const versionRow = await getSecretVersion(secret.id, resolvedVersion);
+    const versionRow = await db.select({
+      status: companySecretVersions.status,
+      revokedAt: companySecretVersions.revokedAt,
+    }).from(companySecretVersions).where(and(
+      eq(companySecretVersions.secretId, secret.id),
+      eq(companySecretVersions.version, resolvedVersion),
+    )).then((rows) => rows[0] ?? null);
     if (!versionRow) throw new HttpError(404, "Secret version not found", { code: "version_missing" });
     if (versionRow.status === "disabled" || versionRow.status === "destroyed" || versionRow.revokedAt) {
       throw unprocessable("Secret version is not active", { code: "version_inactive" });

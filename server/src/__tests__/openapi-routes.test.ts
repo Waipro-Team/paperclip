@@ -229,6 +229,12 @@ describe("openapi routes", () => {
       ).sort(),
     ).toEqual(["200", "400", "401", "403", "409", "422"]);
     expect(res.body.paths["/api/companies/{companyId}/regia/intake"].post.responses["201"]).toBeDefined();
+    const preflight = res.body.paths["/api/companies/{companyId}/regia/intake/preflight"].post;
+    expect(Object.keys(preflight.responses).sort()).toEqual(["200", "400", "401", "403", "422"]);
+    expect(preflight.responses["200"].description).toContain("executionAuthorized is always false");
+    expect(preflight.requestBody.content["application/json"].schema.required).toEqual(["binding"]);
+    expect(preflight.requestBody.content["application/json"].schema.additionalProperties).toBe(false);
+
     expect(
       Object.keys(res.body.paths["/api/companies/{companyId}/regia/intake"].post.responses).sort(),
     ).toEqual(["200", "201", "400", "401", "403", "409", "422"]);
@@ -326,6 +332,12 @@ describe("openapi routes", () => {
     expect(spec.paths["/api/companies/{companyId}/regia/intake"].post["x-paperclip-authorization"]).toEqual({
       actor: "board",
     });
+    expect(spec.paths["/api/companies/{companyId}/regia/intake/preflight"].post["x-paperclip-authorization"])
+      .toEqual({ actor: "board" });
+    expect(spec.paths["/api/companies/{companyId}/regia/intake/preflight"].post.security).toEqual([
+      { BoardSessionAuth: [] }, { BoardApiKeyAuth: [] },
+    ]);
+
     expect(spec.paths["/api/companies/{companyId}/session-observability"].get.security).toEqual([
       { BoardSessionAuth: [] },
       { BoardApiKeyAuth: [] },

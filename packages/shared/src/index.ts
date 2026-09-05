@@ -1,6 +1,10 @@
 export { agentAdapterTypeSchema, optionalAgentAdapterTypeSchema } from "./adapter-type.js";
 export {
   regiaIntakeRequestSchema,
+  regiaIntakePreflightRequestSchema,
+  type RegiaIntakeBinding,
+  type RegiaIntakePreflightRequest,
+  type RegiaIntakePreflightResponse,
   type RegiaIntakeRequest,
   type RegiaIntakeResponse,
 } from "./validators/regia-intake.js";

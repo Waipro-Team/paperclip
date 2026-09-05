@@ -1,0 +1,31 @@
+{
+  "at_utc": "2026-09-05T22:42:25.604217+00:00",
+  "paperclip_head": "9ac50ed69eaf90dd3358e57aeaf4c61d63c294f8",
+  "portal_head": "402135ee6f58769309ee8db3116e5ad7fef308b5",
+  "source_sha256": {
+    "/root/work/paperclip-portal360-reconcile-20260902/server/src/__tests__/telegram-intake-wire.test.ts": "47d847ae23b71ccfc089ae9ba7c4a2b29c78b2cc5b31012af5e8fcab9dd18735",
+    "/root/work/paperclip-portal360-reconcile-20260902/server/src/services/regia-intake.ts": "db4d6e5009ad7834f7573a8aa52e31a159f795a47da1ac569bd6d3fa3a7204c4",
+    "/root/work/paperclip-portal360-reconcile-20260902/server/src/routes/regia-intake.ts": "f198e23c712e6eef625e7285fc54eb83faa02e4ae4413ff65cbab38216034edc",
+    "/root/work/paperclip-portal360-reconcile-20260902/server/src/services/secrets.ts": "6740f93018c93ba755be2f39fe6bd313278b545b9e107bd5652be00e420f919b",
+    "/root/work/paperclip-portal360-reconcile-20260902/packages/shared/src/validators/regia-intake.ts": "77995a2a83fae7ce21a75f824c4be5f2a7e53082dc8594165837d087cdfd5441",
+    "/root/work/portal360-ferrari-universal-control-20260904/services/fabry_telegram_receiver.py": "305a6f653e0660a37659436823142d4aec67f2284deea07762f1fb1a2c280c46",
+    "/root/work/portal360-ferrari-universal-control-20260904/services/fabry_telegram_control.py": "8c46d7ff43241916622d6222a37034b8231e4544413fcac99d244e111d6170bb"
+  },
+  "tests": {
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "user": "claw360",
+    "uid": 10001
+  },
+  "diff_check": {
+    "no_index_exit": 1,
+    "whitespace_diagnostics": [],
+    "clean": true
+  },
+  "fixture_temp_paths_remaining": [],
+  "real_telegram_calls": 0,
+  "live_port_3100_used": false,
+  "real_credentials_used": false,
+  "commit_or_push_performed": false
+}

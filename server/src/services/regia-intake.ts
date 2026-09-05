@@ -21,6 +21,8 @@ import {
 import {
   getAgentWorkEligibility,
   isRegiaRootCatalogRoleKey,
+  type RegiaIntakeBinding,
+  type RegiaIntakePreflightRequest,
   type RegiaIntakeRequest,
   type RegiaIntakeResponse,
 } from "@paperclipai/shared";
@@ -378,8 +380,64 @@ export async function promoteRegiaExecutionPolicyApproval(
   }
 }
 
+// Admission only: this shared check does not grant execution or cache authority.
+async function validateIntakeBinding(db: Db, companyId: string, binding: RegiaIntakeBinding) {
+  const companyAgents = await db.select({
+    id: agents.id,
+    companyId: agents.companyId,
+    name: agents.name,
+    role: agents.role,
+    title: agents.title,
+    status: agents.status,
+    reportsTo: agents.reportsTo,
+    defaultEnvironmentId: agents.defaultEnvironmentId,
+    metadata: agents.metadata,
+  }).from(agents).where(eq(agents.companyId, companyId));
+  const regia = companyAgents.find((agent) => agent.id === binding.regiaAgentId) ?? null;
+  if (!regia || regia.reportsTo !== null || !isRegiaCatalogIdentity(regia) ||
+    !getAgentWorkEligibility({ agent: regia, agents: companyAgents }).invokable) {
+    throw unprocessable("The explicit Regia root is not an invokable canonical catalog identity");
+  }
+
+  const project = await db.select({
+    id: projects.id, goalId: projects.goalId, executionWorkspacePolicy: projects.executionWorkspacePolicy,
+  }).from(projects).where(and(
+    eq(projects.id, binding.projectId),
+    eq(projects.companyId, companyId),
+    isNull(projects.archivedAt),
+  )).then((rows) => rows[0] ?? null);
+  const workspace = await db.select({ id: projectWorkspaces.id }).from(projectWorkspaces).where(and(
+    eq(projectWorkspaces.id, binding.projectWorkspaceId),
+    eq(projectWorkspaces.companyId, companyId),
+    eq(projectWorkspaces.projectId, binding.projectId),
+  )).then((rows) => rows[0] ?? null);
+  const environment = await db.select({ id: environments.id, status: environments.status }).from(environments)
+    .where(eq(environments.id, binding.environmentId)).then((rows) => rows[0] ?? null);
+  if (!project || !workspace || !environment || environment.status !== "active") {
+    throw unprocessable("Regia intake binding is missing or outside the company cell");
+  }
+  if (projectEnvironmentId(project.executionWorkspacePolicy) !== binding.environmentId ||
+    regia.defaultEnvironmentId !== binding.environmentId) {
+    throw unprocessable("Regia intake environment binding is ambiguous or not pinned to project and agent");
+  }
+  const credential = await assertEnvironmentCredentialRef(db, {
+    companyId,
+    environmentId: environment.id,
+    secretId: binding.credentialSecretRef.secretId,
+    version: binding.credentialSecretRef.version,
+  });
+
+  return { regia, project, workspace, environment, credential };
+}
+
 export function regiaIntakeService(db: Db) {
   return {
+    preflight: async (companyId: string, input: RegiaIntakePreflightRequest): Promise<RegiaIntakeBinding> =>
+      db.transaction(async (tx) => {
+        await validateIntakeBinding(tx as unknown as Db, companyId, input.binding);
+        return input.binding;
+      }, { isolationLevel: "repeatable read", accessMode: "read only" }),
+
     accept: async (
       companyId: string,
       input: RegiaIntakeRequest,
@@ -461,49 +519,8 @@ export function regiaIntakeService(db: Db) {
         };
       }
 
-      const companyAgents = await tx.select({
-        id: agents.id,
-        companyId: agents.companyId,
-        name: agents.name,
-        role: agents.role,
-        title: agents.title,
-        status: agents.status,
-        reportsTo: agents.reportsTo,
-        defaultEnvironmentId: agents.defaultEnvironmentId,
-        metadata: agents.metadata,
-      }).from(agents).where(eq(agents.companyId, companyId));
-      const regia = companyAgents.find((agent) => agent.id === input.binding.regiaAgentId) ?? null;
-      if (!regia || regia.reportsTo !== null || !isRegiaCatalogIdentity(regia) ||
-        !getAgentWorkEligibility({ agent: regia, agents: companyAgents }).invokable) {
-        throw unprocessable("The explicit Regia root is not an invokable canonical catalog identity");
-      }
-
-      const project = await tx.select().from(projects).where(and(
-        eq(projects.id, input.binding.projectId),
-        eq(projects.companyId, companyId),
-        isNull(projects.archivedAt),
-      )).then((rows) => rows[0] ?? null);
-      const workspace = await tx.select({ id: projectWorkspaces.id }).from(projectWorkspaces).where(and(
-        eq(projectWorkspaces.id, input.binding.projectWorkspaceId),
-        eq(projectWorkspaces.companyId, companyId),
-        eq(projectWorkspaces.projectId, input.binding.projectId),
-      )).then((rows) => rows[0] ?? null);
-      const environment = await tx.select({ id: environments.id, status: environments.status }).from(environments)
-        .where(eq(environments.id, input.binding.environmentId)).then((rows) => rows[0] ?? null);
-      if (!project || !workspace || !environment || environment.status !== "active") {
-        throw unprocessable("Regia intake binding is missing or outside the company cell");
-      }
-      if (projectEnvironmentId(project.executionWorkspacePolicy) !== input.binding.environmentId ||
-        regia.defaultEnvironmentId !== input.binding.environmentId) {
-        throw unprocessable("Regia intake environment binding is ambiguous or not pinned to project and agent");
-      }
-      const requestedVersion = input.binding.credentialSecretRef.version;
-      const credential = await assertEnvironmentCredentialRef(tx as unknown as Db, {
-        companyId,
-        environmentId: environment.id,
-        secretId: input.binding.credentialSecretRef.secretId,
-        version: requestedVersion,
-      });
+      const { regia, project, workspace, environment, credential } =
+        await validateIntakeBinding(tx as unknown as Db, companyId, input.binding);
 
       let goal = project.goalId
         ? await tx.select().from(goals).where(and(eq(goals.id, project.goalId), eq(goals.companyId, companyId)))
