@@ -38,7 +38,9 @@ jobs:
           printf '%s\n' "PAPERCLIP_PREFLIGHT_OUTPUT=$RUNNER_TEMP/paperclip-image-preflight" >> "$GITHUB_ENV"
 
       - name: Verify pure environment guards
-        run: python3 -I -B scripts/portal360-image-preflight/test_preflight_config.py
+        run: |
+          python3 -I -B scripts/portal360-image-preflight/test_preflight_config.py
+          python3 -I -B scripts/portal360-image-preflight/test_export_image.py
 
       - name: Prepare only this disposable hosted runner and measure capacity
         run: python3 -I -B scripts/portal360-image-preflight/preflight_config.py prepare-runner
@@ -58,6 +60,18 @@ jobs:
 
       - name: Probe authentication and intake route on the exact isolated image ID
         run: python3 -I -B scripts/portal360-image-preflight/smoke-image.py
+
+      - name: Export the exact image which passed its isolated smoke
+        run: python3 -I -B scripts/portal360-image-preflight/export-image.py
+
+      - name: Retain a short-lived transferable image artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: portal360-image-${{ github.event.pull_request.head.sha }}
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+          path: ${{ runner.temp }}/paperclip-image-preflight/paperclip-candidate-${{ github.event.pull_request.head.sha }}.tar.gz
 
       - name: Remove only the candidate image created by this job
         if: always()
@@ -81,3 +95,5 @@ jobs:
             ${{ runner.temp }}/paperclip-image-preflight/build.txt
             ${{ runner.temp }}/paperclip-image-preflight/smoke-result.json
             ${{ runner.temp }}/paperclip-image-preflight/ci-cleanup.json
+            ${{ runner.temp }}/paperclip-image-preflight/image-export.json
+            ${{ runner.temp }}/paperclip-image-preflight/image-export.txt

@@ -1,0 +1,9 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "baseline": "4aa9766329449d19216cdfb47124ef300570251b",
+  "scope": [
+    "doc/evidence/full-image-ci/run-4aa976632/"
+  ],
+  "state": "ready_for_review",
+  "authorization": "root: close verified hosted build/smoke evidence without automatic receipt push"
+}
