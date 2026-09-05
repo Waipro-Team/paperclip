@@ -143,6 +143,7 @@ export const queryKeys = {
   },
   agents: {
     list: (companyId: string) => ["agents", companyId] as const,
+    sessionObservability: (companyId: string) => ["agents", companyId, "session-observability"] as const,
     detail: (id: string) => ["agents", "detail", id] as const,
     runtimeState: (id: string) => ["agents", "runtime-state", id] as const,
     taskSessions: (id: string) => ["agents", "task-sessions", id] as const,
@@ -304,6 +305,7 @@ export const queryKeys = {
   environments: {
     list: (companyId: string) => ["environments", companyId] as const,
     capabilities: (companyId: string) => ["environment-capabilities", companyId] as const,
+    secretRefs: (environmentId: string) => ["environments", environmentId, "secret-refs"] as const,
     customImageTemplate: (environmentId: string) =>
       ["environments", environmentId, "custom-image-template"] as const,
     customImageSetupSession: (sessionId: string) =>
@@ -314,6 +316,8 @@ export const queryKeys = {
     list: (companyId: string, opts: { includeArchived?: boolean } = {}) =>
       ["projects", companyId, { includeArchived: opts.includeArchived === true }] as const,
     detail: (id: string) => ["projects", "detail", id] as const,
+    workspaces: (companyId: string, projectId: string) =>
+      ["projects", companyId, projectId, "workspaces"] as const,
   },
   cases: {
     list: (companyId: string) => ["cases", companyId] as const,

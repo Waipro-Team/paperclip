@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const companyAId = "11111111-1111-4111-8111-111111111111";
 const companyBId = "22222222-2222-4222-8222-222222222222";
 const ceoAgentId = "ceo-agent-a";
+const fiveCompanyIds = [
+  companyAId,
+  companyBId,
+  "33333333-3333-4333-8333-333333333333",
+  "44444444-4444-4444-8444-444444444444",
+  "55555555-5555-4555-8555-555555555555",
+] as const;
 
 const mockCompanyService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -220,6 +227,82 @@ describe.sequential("company route cross-company authorization", () => {
     vi.doUnmock("../middleware/index.js");
     vi.clearAllMocks();
     resetMockDefaults();
+  });
+
+  it.each(["session", "board_key"])(
+    "limits a signed-in instance admin (%s) list and stats to explicit company memberships",
+    async (source) => {
+      mockCompanyService.list.mockResolvedValue([createCompany(companyAId), createCompany(companyBId)]);
+      mockCompanyService.stats.mockResolvedValue({
+        [companyAId]: { agents: 1 },
+        [companyBId]: { agents: 2 },
+      });
+      const app = await createApp(boardActor({
+        userId: `instance-admin-${source}`,
+        source,
+        isInstanceAdmin: true,
+        companyIds: [companyAId],
+        memberships: [{ companyId: companyAId, membershipRole: "owner", status: "active" }],
+      }));
+
+      const list = await request(app).get("/api/companies").expect(200);
+      expect(list.body.map((company: { id: string }) => company.id)).toEqual([companyAId]);
+
+      const stats = await request(app).get("/api/companies/stats").expect(200);
+      expect(stats.body).toEqual({ [companyAId]: { agents: 1 } });
+
+      await request(app).get(`/api/companies/${companyAId}`).expect(200);
+      const denied = await request(app).get(`/api/companies/${companyBId}`).expect(403);
+      expect(denied.body.error).toContain("access to this company");
+    },
+  );
+
+  it("preserves unrestricted company list and stats for the trusted local implicit board", async () => {
+    mockCompanyService.list.mockResolvedValue([createCompany(companyAId), createCompany(companyBId)]);
+    mockCompanyService.stats.mockResolvedValue({
+      [companyAId]: { agents: 1 },
+      [companyBId]: { agents: 2 },
+    });
+    const app = await createApp(boardActor({
+      userId: "local-board",
+      source: "local_implicit",
+      isInstanceAdmin: true,
+    }));
+
+    const list = await request(app).get("/api/companies").expect(200);
+    expect(list.body.map((company: { id: string }) => company.id)).toEqual([companyAId, companyBId]);
+    const stats = await request(app).get("/api/companies/stats").expect(200);
+    expect(stats.body).toEqual({
+      [companyAId]: { agents: 1 },
+      [companyBId]: { agents: 2 },
+    });
+  });
+
+  it("returns exactly the five explicitly owned companies to a five-membership board user", async () => {
+    const extraCompanyId = "66666666-6666-4666-8666-666666666666";
+    mockCompanyService.list.mockResolvedValue([
+      ...fiveCompanyIds.map((id) => createCompany(id)),
+      createCompany(extraCompanyId),
+    ]);
+    mockCompanyService.stats.mockResolvedValue(Object.fromEntries([
+      ...fiveCompanyIds.map((id, index) => [id, { agents: index + 1 }]),
+      [extraCompanyId, { agents: 99 }],
+    ]));
+    const app = await createApp(boardActor({
+      userId: "five-company-owner",
+      companyIds: [...fiveCompanyIds],
+      memberships: fiveCompanyIds.map((companyId) => ({
+        companyId,
+        membershipRole: "owner",
+        status: "active",
+      })),
+    }));
+
+    const list = await request(app).get("/api/companies").expect(200);
+    expect(list.body.map((company: { id: string }) => company.id)).toEqual(fiveCompanyIds);
+    const stats = await request(app).get("/api/companies/stats").expect(200);
+    expect(Object.keys(stats.body)).toEqual(fiveCompanyIds);
+    expect(stats.body).not.toHaveProperty(extraCompanyId);
   });
 
   it.each([

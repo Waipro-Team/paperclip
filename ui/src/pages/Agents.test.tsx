@@ -97,6 +97,12 @@ vi.mock("../api/resourceMemberships", () => ({
   resourceMembershipsApi: mockResourceMembershipsApi,
 }));
 
+vi.mock("../components/SessionObservability", () => ({
+  SessionObservability: ({ companyId }: { companyId: string }) => (
+    <div data-testid="session-observability">Session observability {companyId}</div>
+  ),
+}));
+
 vi.mock("../adapters/adapter-display-registry", () => ({
   getAdapterLabel: (type: string) => type,
 }));
@@ -382,6 +388,26 @@ describe("Agents", () => {
     const heartbeatCell = container.querySelector(".whitespace-nowrap.w-24");
     expect(heartbeatCell).not.toBeNull();
     expect(heartbeatCell?.textContent).not.toContain("\n");
+  });
+
+  it("renders the sessions branch without waiting for the roster query", async () => {
+    mockRouterState.pathname = "/agents/sessions";
+    mockAgentsApi.list.mockReturnValue(new Promise(() => {}));
+
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <Agents />
+          </ToastProvider>
+        </QueryClientProvider>,
+      );
+    });
+    await flushReact();
+
+    expect(container.querySelector("[data-testid='session-observability']")?.textContent)
+      .toBe("Session observability company-1");
   });
 
   it("gives mobile agent names the full row width after the leading status indicator", async () => {
@@ -883,7 +909,7 @@ describe("Agents", () => {
     await flushReact();
 
     expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("company-1");
-    expect(container.textContent).toContain("Built-in");
+    expect(container.textContent).toContain("Integrati");
     expect(container.textContent).toContain("Briefs Agent");
     expect(container.textContent).not.toContain("Regular Agent");
     expect(container.querySelector('[title="Ships with Paperclip"]')).toBeNull();

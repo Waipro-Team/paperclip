@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-05T06:41:42.080238+00:00",
+  "version": "1.7.12",
+  "release_url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/",
+  "archive_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+  "checksum_matches_official_release": true,
+  "workflow_sha256": "4ba43ea085df867c20e565981604f6e910e07fddc96d39bfd0f69f762f70d7bb",
+  "command": "actionlint -color -shellcheck= -pyflakes= .github/workflows/portal360-image-preflight.yml",
+  "external_shellcheck_and_pyflakes": "not invoked; Bash/Python syntax checked independently",
+  "exit_code": 0,
+  "temporary_tool_directory_removed": true
+}

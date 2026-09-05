@@ -1,0 +1,10 @@
+{
+  "baseline": "e3eab571283f620d40992fbeaad11668f6bf12f6",
+  "files": {
+    "server/src/__tests__/regia-intake-preflight.test.ts": "2bbfd1d9389adb8eed9b3b78a8d55cc1cb2e514be4ee5a50f5411e5af0575f43",
+    "doc/evidence/intake-preflight/CLAIM.json": "342b617273e283f143cda6deceec85bc816b7a0b4f226f66d14aa31177fe604f",
+    "doc/evidence/intake-preflight/RECEIPT.md": "37bafc7839f4763be0506e07ba0cd7c2dfd6a3daf24286648d15dfca40ef76e6",
+    "doc/evidence/intake-preflight/validation.json": "13c5a5c65ec10247f538beab6d22eab44a2dc0f9cff42b737e48a2f45d262fe0"
+  },
+  "excludes_self": true
+}

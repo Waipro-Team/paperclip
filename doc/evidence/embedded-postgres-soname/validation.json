@@ -1,0 +1,11 @@
+{
+  "observed_at": "2026-09-05T05:34:22.478438+00:00",
+  "test_command": "./node_modules/.bin/vitest run packages/db/src/embedded-postgres-native.test.ts server/src/__tests__/docker-entrypoint.test.ts server/src/__tests__/docker-build-stamp.test.ts",
+  "test_files": 3,
+  "test_pass": 16,
+  "test_fail": 0,
+  "deps_stage": "PASS",
+  "diff_check": "PASS",
+  "whole_candidate_build": "not_run",
+  "production_changes": false
+}

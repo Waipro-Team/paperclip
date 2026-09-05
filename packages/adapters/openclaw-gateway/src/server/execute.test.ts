@@ -76,7 +76,7 @@ describe("buildAgentParams", () => {
     });
   });
 
-  it("preserves an explicit agentId and timeout from the payload template", () => {
+  it("does not allow the payload template to override the configured agentId", () => {
     expect(
       buildAgentParams({
         payloadTemplate: {
@@ -90,7 +90,7 @@ describe("buildAgentParams", () => {
         waitTimeoutMs: 30_000,
       }),
     ).toEqual({
-      agentId: "template-agent",
+      agentId: "configured-agent",
       timeout: 5_000,
       message: "wake text",
       sessionKey: "paperclip",

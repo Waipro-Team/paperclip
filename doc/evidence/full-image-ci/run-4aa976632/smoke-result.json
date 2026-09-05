@@ -1,0 +1,45 @@
+{
+  "fixture_container": "portal360-intake-image-smoke-10735",
+  "source_commit": "4aa9766329449d19216cdfb47124ef300570251b",
+  "derived_lock_sha256": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+  "image_id": "sha256:51494ceb67afde934f3f1589162cfa7408dad71b5b52a9891f6639dfb1406d72",
+  "started_at": "2026-09-05T07:03:40.236974+00:00",
+  "constraints": {
+    "network": "none",
+    "rootfs": "read-only",
+    "user": "1001:1001",
+    "memory": "2g",
+    "cpus": 1,
+    "pids": 256,
+    "tmpfs": [
+      "/paperclip (1GiB)",
+      "/tmp (256MiB)"
+    ],
+    "volumes": [],
+    "ports": [],
+    "scheduler": false,
+    "telemetry": false
+  },
+  "health": {
+    "http": 200,
+    "status": "ok",
+    "commit": "4aa9766329449d19216cdfb47124ef300570251b",
+    "deploymentMode": "authenticated",
+    "bootstrapStatus": "bootstrap_pending"
+  },
+  "probe": {
+    "signup_http": 200,
+    "authenticated_session": true,
+    "bootstrap_claim_http": 200,
+    "empty_bearer_existing": 401,
+    "empty_bearer_missing": 401,
+    "authenticated_intake_invalid_body": 400,
+    "authenticated_missing_route": 404,
+    "valid_intake_submitted": false,
+    "execution_not_tested": true
+  },
+  "status": "image_auth_and_route_validation_pass",
+  "fixture_container_removed": true,
+  "ephemeral_data_removed_with_container": true,
+  "candidate_image_retained": true
+}

@@ -1,0 +1,24 @@
+{
+  "fixture_builder": "buildx_buildkit_portal360-preflight-24955090",
+  "samples": [
+    {
+      "observed_at": "2026-09-05T06:18:33.545742+00:00",
+      "cpu.stat": "builder unavailable",
+      "io.stat": "builder unavailable",
+      "memory.current": "builder unavailable",
+      "memory.events": "builder unavailable",
+      "log_mtime_utc": "2026-09-05T06:18:28.144235+00:00",
+      "log_size_bytes": 131647
+    },
+    {
+      "observed_at": "2026-09-05T06:18:43.958902+00:00",
+      "cpu.stat": "builder unavailable",
+      "io.stat": "builder unavailable",
+      "memory.current": "builder unavailable",
+      "memory.events": "builder unavailable",
+      "log_mtime_utc": "2026-09-05T06:18:28.144235+00:00",
+      "log_size_bytes": 131647
+    }
+  ],
+  "process_names_only": ""
+}

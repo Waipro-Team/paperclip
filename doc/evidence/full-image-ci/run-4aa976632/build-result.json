@@ -1,0 +1,72 @@
+{
+  "commit": "4aa9766329449d19216cdfb47124ef300570251b",
+  "started_at": "2026-09-05T06:54:38.587644+00:00",
+  "image_tag": "portal360/paperclip-candidate:4aa976632-preflight",
+  "builder": "portal360-preflight-2631",
+  "free_bytes_before": 116402466816,
+  "minimum_start_gib": 40,
+  "build_timeout_seconds": 1800,
+  "abort_free_bytes": 19327352832,
+  "minimum_reserve_bytes": 16106127360,
+  "source": "git archive of exact commit plus captured lock from official Docker workflow preprocessing",
+  "derived_lock_sha256": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+  "committed_lock_sha256": "c92dc538b4cc082d850da897049a36537cf5c070705ff13e4b8d8fbe68a2de31",
+  "production_changes": false,
+  "context_verification": {
+    "changed_files": [
+      "pnpm-lock.yaml"
+    ],
+    "dockerfile_sha256": "e220748da3c2621a97c9f8cbfccccfce86f238d97cf71490a579c54090455496",
+    "dockerignore_sha256": "3807bb7319878f4cc1104cda45930c644ca59c46a5f7329e73e4b059226ef886",
+    "file_count": 5689,
+    "tree_sha256": "845d91ee8efc41be2e842f9694e73ddd785a78e5986d9dd575a9e26b59e85910",
+    "transport": "explicit temporary directory; no stdin autodetection"
+  },
+  "verified_builder_limits": {
+    "Memory": 6442450944,
+    "MemorySwap": 6442450944,
+    "CpuQuota": 200000,
+    "CpuPeriod": 100000
+  },
+  "fixture_volume": "buildx_buildkit_portal360-preflight-26310_state",
+  "build_command": [
+    "docker",
+    "buildx",
+    "build",
+    "--builder",
+    "portal360-preflight-2631",
+    "--target",
+    "production",
+    "--platform",
+    "linux/amd64",
+    "--load",
+    "--progress",
+    "plain",
+    "--tag",
+    "portal360/paperclip-candidate:4aa976632-preflight",
+    "--build-arg",
+    "USER_UID=1001",
+    "--build-arg",
+    "USER_GID=1001",
+    "--build-arg",
+    "PAPERCLIP_BUILD_COMMIT=4aa9766329449d19216cdfb47124ef300570251b",
+    "--build-arg",
+    "PAPERCLIP_BUILD_VERSION=candidate-4aa976632",
+    "--build-arg",
+    "CLI_TOOLS_CACHE_EPOCH=2026-W36",
+    "/tmp/paperclip-image-context-3gwve563"
+  ],
+  "minimum_observed_free_bytes": 93834776576,
+  "build_exit": 0,
+  "duration_seconds": 522.03,
+  "image_id": "sha256:51494ceb67afde934f3f1589162cfa7408dad71b5b52a9891f6639dfb1406d72",
+  "image_size_bytes": 4790410296,
+  "status": "built_not_smoked",
+  "cleanup": {
+    "builder_container_remaining": false,
+    "builder_volume_remaining": false,
+    "candidate_image_retained": true,
+    "context_directory_removed": true
+  },
+  "free_bytes_after": 111282884608
+}

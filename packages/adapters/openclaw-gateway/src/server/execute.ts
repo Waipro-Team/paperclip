@@ -15,6 +15,7 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import crypto, { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
+import { validateOpenClawIsolationSnapshot } from "./isolation.js";
 
 type SessionKeyStrategy = "fixed" | "issue" | "run";
 
@@ -478,7 +479,7 @@ export function buildAgentParams(input: {
   message: string;
   sessionKey: string;
   runId: string;
-  configuredAgentId: string | null;
+  configuredAgentId: string;
   waitTimeoutMs: number;
 }): Record<string, unknown> {
   const agentParams: Record<string, unknown> = {
@@ -490,9 +491,9 @@ export function buildAgentParams(input: {
   delete agentParams.text;
   delete agentParams.paperclip;
 
-  if (input.configuredAgentId && !nonEmpty(agentParams.agentId)) {
-    agentParams.agentId = input.configuredAgentId;
-  }
+  // The top-level adapter selection is authoritative. A payload template must
+  // never reroute a run to another OpenClaw tenant agent (or to `main`).
+  agentParams.agentId = input.configuredAgentId;
 
   if (typeof agentParams.timeout !== "number") {
     agentParams.timeout = input.waitTimeoutMs;
@@ -1028,6 +1029,49 @@ function extractResultText(value: unknown): string | null {
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  if (ctx.executionTarget?.kind === "remote") {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorMessage:
+        "OpenClaw gateway cannot honor a remote Paperclip execution target; refusing host-side dispatch.",
+      errorCode: "openclaw_gateway_execution_target_unsupported",
+    };
+  }
+
+  const configuredAgentId = nonEmpty(ctx.config.agentId);
+  if (!configuredAgentId) {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorMessage: "OpenClaw gateway adapter requires an explicit agentId.",
+      errorCode: "openclaw_gateway_agent_id_missing",
+    };
+  }
+  if (configuredAgentId.toLowerCase() === "main") {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorMessage: "The OpenClaw main/default agent cannot be used by the Paperclip gateway adapter.",
+      errorCode: "openclaw_gateway_main_agent_forbidden",
+    };
+  }
+
+  const payloadTemplate = parseObject(ctx.config.payloadTemplate);
+  const templateAgentId = nonEmpty(payloadTemplate.agentId);
+  if (templateAgentId && templateAgentId !== configuredAgentId) {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorMessage: "payloadTemplate.agentId must match the configured OpenClaw agentId.",
+      errorCode: "openclaw_gateway_agent_id_mismatch",
+    };
+  }
+
   const urlValue = asString(ctx.config.url, "").trim();
   if (!urlValue) {
     return {
@@ -1065,7 +1109,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const connectTimeoutMs = timeoutMs > 0 ? Math.min(timeoutMs, 15_000) : 10_000;
   const waitTimeoutMs = parseOptionalPositiveInteger(ctx.config.waitTimeoutMs) ?? (timeoutMs > 0 ? timeoutMs : 30_000);
 
-  const payloadTemplate = parseObject(ctx.config.payloadTemplate);
   const transportHint = nonEmpty(ctx.config.streamTransport) ?? nonEmpty(ctx.config.transport);
 
   const headers = toStringRecord(ctx.config.headers);
@@ -1104,7 +1147,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const sessionKeyStrategy = normalizeSessionKeyStrategy(ctx.config.sessionKeyStrategy);
   const configuredSessionKey = nonEmpty(ctx.config.sessionKey);
-  const configuredAgentId = nonEmpty(ctx.config.agentId);
   const sessionKey = resolveSessionKey({
     strategy: sessionKeyStrategy,
     configuredSessionKey,
@@ -1296,6 +1338,27 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         "stdout",
         `[openclaw-gateway] connected protocol=${asNumber(asRecord(hello)?.protocol, PROTOCOL_VERSION)}\n`,
       );
+
+      const isolationSnapshot = await client.request<unknown>("config.get", {}, {
+        timeoutMs: connectTimeoutMs,
+      });
+      const isolationValidation = validateOpenClawIsolationSnapshot(
+        isolationSnapshot,
+        configuredAgentId,
+      );
+      if (!isolationValidation.ok) {
+        await ctx.onLog(
+          "stderr",
+          `[openclaw-gateway] isolation gate failed: ${isolationValidation.message}\n`,
+        );
+        return {
+          exitCode: 1,
+          signal: null,
+          timedOut: false,
+          errorMessage: isolationValidation.message,
+          errorCode: isolationValidation.code,
+        };
+      }
 
       // Keep any server-side continuation lock through retryable websocket
       // setup and backoff. The first agent request is the remote-work boundary:

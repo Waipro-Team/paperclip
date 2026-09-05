@@ -18,7 +18,9 @@ import { MembershipAction } from "../components/MembershipAction";
 import { StarToggle } from "../components/StarToggle";
 import { EntityRow } from "../components/EntityRow";
 import { BuiltInLifecycleChip } from "../components/BuiltInAgentBadges";
+import { AgentProfileAvatar } from "../components/AgentProfileAvatar";
 import { EmptyState } from "../components/EmptyState";
+import { SessionObservability } from "../components/SessionObservability";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { PageTabBar } from "../components/PageTabBar";
@@ -46,15 +48,16 @@ const ConfigureBuiltInAgentModal = lazy(() =>
   })),
 );
 
-export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin"] as const;
+export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin", "sessions"] as const;
 type FilterTab = (typeof AGENT_FILTER_TABS)[number];
 
 const AGENT_FILTER_TAB_ITEMS: { value: FilterTab; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "error", label: "Error" },
-  { value: "builtin", label: "Built-in" },
+  { value: "all", label: "Tutti" },
+  { value: "active", label: "Operativi" },
+  { value: "paused", label: "Archivio" },
+  { value: "error", label: "Errore" },
+  { value: "builtin", label: "Integrati" },
+  { value: "sessions", label: "Sessioni" },
 ];
 
 function isFilterTab(value: string): value is FilterTab {
@@ -318,8 +321,8 @@ export function Agents() {
   }, [agents, environmentsById, environmentCapabilities, instanceSettings?.defaultEnvironmentId]);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Agents" }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: tab === "sessions" ? "Agents / Sessioni" : "Agents" }]);
+  }, [setBreadcrumbs, tab]);
 
   useEffect(() => {
     if (selectedCompanyId && requestedTab === "builtin" && instanceSettings && !builtInAgentsEnabled) {
@@ -329,6 +332,22 @@ export function Agents() {
 
   if (!selectedCompanyId) {
     return <EmptyState icon={Bot} message="Select an organization to view agents." />;
+  }
+
+  if (tab === "sessions") {
+    return (
+      <div className="space-y-4">
+        <Tabs value={tab} onValueChange={(value) => navigate(`/agents/${value}`)}>
+          <PageTabBar
+            items={visibleTabItems}
+            value={tab}
+            onValueChange={(value) => navigate(`/agents/${value}`)}
+            align="start"
+          />
+        </Tabs>
+        <SessionObservability companyId={selectedCompanyId} />
+      </div>
+    );
   }
 
   if (isLoading) {
@@ -400,10 +419,15 @@ export function Agents() {
           agent.pausedAt && tab !== "paused" ? "opacity-50" : "",
           resourceMembershipState(membershipsQuery.data, "agent", agent.id) === "left" ? "sm:text-foreground/55" : "",
         )}
-        leading={hasInvalidOrgChain ? (
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid reporting chain" />
-        ) : (
-          <AgentStatusCapsule status={agent.status} />
+        leading={(
+          <div className="flex items-center gap-2">
+            <AgentProfileAvatar agent={agent} size="sm" />
+            {hasInvalidOrgChain ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid reporting chain" />
+            ) : (
+              <AgentStatusCapsule status={agent.status} />
+            )}
+          </div>
         )}
         secondaryRow={
           builtInCluster ? (
@@ -669,6 +693,10 @@ function OrgTreeNode({
           membershipState === "left" && "sm:text-foreground/55",
         )}
       >
+        <AgentProfileAvatar
+          agent={agent ?? { name: node.name, icon: null, metadata: null }}
+          size="sm"
+        />
         {hasInvalidOrgChain ? (
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid reporting chain" />
         ) : (

@@ -255,18 +255,38 @@ describe("TeamCatalog install preview path", () => {
 
   it("renders the detail pane for the selected team", async () => {
     await renderPage();
+    expect(document.querySelector('[data-testid="team-catalog-intro"]')).toBeTruthy();
+    expect(document.body.textContent).toContain("Scegli la squadra. Avvia il lavoro.");
     expect(document.body.textContent).toContain("Core Exec Team");
     expect(document.body.textContent).toContain("A starter executive team.");
     // summary grid counts
-    expect(document.body.textContent).toContain("Agents");
-    expect(document.body.textContent).toContain("Projects");
+    expect(document.body.textContent).toContain("Agenti");
+    expect(document.body.textContent).toContain("Progetti");
+  });
+
+  it("labels a pinned external source unambiguously in Italian", async () => {
+    mockTeamCatalogApi.catalogList.mockResolvedValue([
+      makeTeam({
+        sourceRefs: [{ type: "github", ref: "acme/team@0123456789abcdef", pinned: true }],
+      }),
+    ]);
+
+    await renderPage();
+    const sourcesToggle = findButton("Fonti esterne");
+    expect(sourcesToggle).toBeTruthy();
+    await act(async () => {
+      sourcesToggle!.click();
+    });
+
+    expect(document.body.textContent).toContain("Riferimento fissato");
+    expect(document.body.textContent).not.toContain("Bloccata");
   });
 
   it("opens the installer, fetches the preview, and submits the install", async () => {
     await renderPage();
 
     // Open the installer from the detail CTA.
-    const installCta = findButton("Install team");
+    const installCta = findButton("Installa il team");
     expect(installCta).toBeTruthy();
     await act(async () => {
       installCta!.click();
@@ -281,23 +301,27 @@ describe("TeamCatalog install preview path", () => {
       "team-no-deps",
       expect.objectContaining({ collisionStrategy: "rename" }),
     );
-    expect(document.body.textContent).toContain("Summary");
+    expect(document.body.textContent).toContain("Riepilogo");
     // categorized plan rows
     expect(document.body.textContent?.toLowerCase()).toContain("ceo");
     expect(document.body.textContent?.toLowerCase()).toContain("launch");
 
     // Submit install from the footer.
     const submit = Array.from(document.querySelectorAll("button")).filter((b) =>
-      (b.textContent ?? "").includes("Install team"),
+      (b.textContent ?? "").includes("Installa il team"),
     );
-    // Last "Install team" is the wizard footer submit.
+    // Last "Installa il team" is the wizard footer submit.
     await act(async () => {
       submit[submit.length - 1].click();
     });
     await flushReact();
 
     expect(mockTeamCatalogApi.install).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).toContain("Team installed");
+    expect(document.body.textContent).toContain("Team installato");
+    expect(document.body.textContent).toContain(
+      "Core Exec Team è stato importato nella tua organizzazione.",
+    );
+    expect(document.body.textContent).not.toContain("was imported into your organization");
   });
 
   it("requires and submits Step 4 secret values", async () => {
@@ -318,17 +342,17 @@ describe("TeamCatalog install preview path", () => {
 
     await renderPage();
 
-    const installCta = findButton("Install team");
+    const installCta = findButton("Installa il team");
     await act(async () => {
       installCta!.click();
     });
     await flushReact();
 
     const footerInstall = Array.from(document.querySelectorAll("button")).filter((b) =>
-      (b.textContent ?? "").includes("Install team"),
+      (b.textContent ?? "").includes("Installa il team"),
     ).at(-1) as HTMLButtonElement;
     expect(footerInstall.disabled).toBe(true);
-    expect(document.body.textContent).toContain("Required secrets missing: 1");
+    expect(document.body.textContent).toContain("Segreti obbligatori mancanti: 1");
 
     const secretInput = document.querySelector('input[aria-label="OPENAI_API_KEY value"]') as HTMLInputElement;
     expect(secretInput).toBeTruthy();
@@ -387,15 +411,15 @@ describe("TeamCatalog install preview path", () => {
     ]);
     await renderPage();
 
-    const installCta = findButton("Install team");
+    const installCta = findButton("Installa il team");
     await act(async () => {
       installCta!.click();
     });
     await flushReact();
 
     // First step is target manager; Continue is disabled until a manager is chosen.
-    expect(document.body.textContent).toContain("root agents need a manager");
-    const continueBtn = findButton("Continue");
+    expect(document.body.textContent).toContain("richiedono un responsabile");
+    const continueBtn = findButton("Continua");
     expect(continueBtn).toBeTruthy();
     expect(continueBtn!.disabled).toBe(true);
     // Preview has not been requested yet (still on step 1).
@@ -418,16 +442,16 @@ describe("TeamCatalog install preview path", () => {
     await renderPage();
 
     // List group header reflects the installed team, not Bundled.
-    expect(document.body.textContent).toContain("Installed · 1");
-    expect(document.body.textContent).not.toContain("Bundled · 1");
+    expect(document.body.textContent).toContain("Installati · 1");
+    expect(document.body.textContent).not.toContain("Inclusi · 1");
 
     // Detail header chip + Re-install CTA replace the plain Install button.
-    expect(document.body.textContent).toContain("Update available");
-    expect(findButton("Re-install latest")).toBeTruthy();
-    expect(findButton("Install team")).toBeFalsy();
+    expect(document.body.textContent).toContain("Aggiornamento disponibile");
+    expect(findButton("Reinstalla l’ultima versione")).toBeTruthy();
+    expect(findButton("Installa il team")).toBeFalsy();
 
     // The out-of-date badge in the list row exposes an accessible label.
-    expect(document.querySelector('[aria-label="Update available"]')).toBeTruthy();
+    expect(document.querySelector('[aria-label="Aggiornamento disponibile"]')).toBeTruthy();
   });
 
   it("renders an Installed badge (no update chip) when the installed team is current", async () => {
@@ -445,9 +469,9 @@ describe("TeamCatalog install preview path", () => {
 
     await renderPage();
 
-    expect(document.body.textContent).toContain("Installed · 1");
-    expect(document.body.textContent).toContain("Installed");
-    expect(document.body.textContent).not.toContain("Update available");
-    expect(findButton("Re-install latest")).toBeTruthy();
+    expect(document.body.textContent).toContain("Installati · 1");
+    expect(document.body.textContent).toContain("Installato");
+    expect(document.body.textContent).not.toContain("Aggiornamento disponibile");
+    expect(findButton("Reinstalla l’ultima versione")).toBeTruthy();
   });
 });

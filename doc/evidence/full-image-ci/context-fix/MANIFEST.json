@@ -1,0 +1,10 @@
+{
+  "baseline": "d85760f0695fdf6ab99c171859ccc3cc3c1fc579",
+  "files_sha256": {
+    ".github/workflows/portal360-image-preflight.yml": "4ba43ea085df867c20e565981604f6e910e07fddc96d39bfd0f69f762f70d7bb",
+    "doc/evidence/full-image-ci/context-fix/CLAIM.json": "9289f16c6e296cd3593312fbffc05e8a4ce71781be671278460a45b6543703e8",
+    "doc/evidence/full-image-ci/context-fix/RECEIPT.md": "164f7c154010a85b3838d4885ced757da84e679e67061fe2fe05c9747e97c9a8",
+    "doc/evidence/full-image-ci/context-fix/actionlint-result.json": "97c7e2bd3bef523fc199713b5f3eb393f8b1da905dc2b363354057735dae37d1",
+    "doc/evidence/full-image-ci/context-fix/actionlint.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

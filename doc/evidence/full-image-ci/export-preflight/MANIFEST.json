@@ -1,0 +1,12 @@
+{
+  "baseline": "4aa9766329449d19216cdfb47124ef300570251b",
+  "files_sha256": {
+    ".github/workflows/portal360-image-preflight.yml": "3b6cf3373ceb7da8e7defec21721b80e39ce0c6af0b2a51950881c4be867b551",
+    "doc/evidence/full-image-ci/export-preflight/CLAIM.json": "5631d15fd81b2806a1de0802f403dba3fbc347f95e00520d475ae23140dc4a68",
+    "doc/evidence/full-image-ci/export-preflight/RECEIPT.md": "a137f9cbf63ec52a5a3a95161696771243979f33c712eb2055b98310f60d2b7c",
+    "doc/evidence/full-image-ci/export-preflight/actionlint.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "doc/evidence/full-image-ci/export-preflight/validation.json": "2aeb6a6e9fd632e977decebae4a5aee3a13782d02437a39a625a8de7633ce6e0",
+    "scripts/portal360-image-preflight/export-image.py": "9399c22928980c2c0f92427ce537ddaf5dc7634dd2674d6d460b7c7cc37f4c50",
+    "scripts/portal360-image-preflight/test_export_image.py": "080447ab9d8d716ba77bba058e9d035accbe55ca90f9c7cb8a37dc64c14b80b1"
+  }
+}

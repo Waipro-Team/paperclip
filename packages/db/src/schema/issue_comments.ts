@@ -45,6 +45,10 @@ export const issueComments = pgTable(
   (table) => ({
     issueIdx: index("issue_comments_issue_idx").on(table.issueId),
     companyIdx: index("issue_comments_company_idx").on(table.companyId),
+    companyCreatedAtIdx: index("issue_comments_company_created_at_idx").on(
+      table.companyId,
+      table.createdAt.desc(),
+    ),
     companyIssueCreatedAtIdx: index("issue_comments_company_issue_created_at_idx").on(
       table.companyId,
       table.issueId,

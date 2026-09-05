@@ -1,0 +1,30 @@
+Scope: all 35 workspace projects
+Progress: resolved 1, reused 0, downloaded 0, added 0
+
+   ╭───────────────────────────────────────────────────────────────────╮
+   │                                                                   │
+   │                Update available! 9.15.4 → 11.25.0.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.25.0   │
+   │         Run "corepack install -g pnpm@11.25.0" to update.         │
+   │                                                                   │
+   ╰───────────────────────────────────────────────────────────────────╯
+
+Progress: resolved 19, reused 0, downloaded 0, added 0
+server                                   |  WARN  deprecated @types/sharp@0.32.0
+Progress: resolved 58, reused 0, downloaded 0, added 0
+Progress: resolved 103, reused 0, downloaded 0, added 0
+Progress: resolved 224, reused 0, downloaded 0, added 0
+Progress: resolved 423, reused 0, downloaded 0, added 0
+Progress: resolved 531, reused 0, downloaded 0, added 0
+Progress: resolved 611, reused 0, downloaded 0, added 0
+Progress: resolved 765, reused 0, downloaded 0, added 0
+Progress: resolved 864, reused 0, downloaded 0, added 0
+Progress: resolved 1060, reused 0, downloaded 0, added 0
+Progress: resolved 1250, reused 0, downloaded 0, added 0
+ WARN  5 deprecated subdependencies found: @esbuild-kit/core-utils@3.3.2, @esbuild-kit/esm-loader@2.6.5, @ungap/structured-clone@1.3.0, glob@10.5.0, node-domexception@1.0.0
+Progress: resolved 1421, reused 0, downloaded 0, added 0
+Progress: resolved 1421, reused 0, downloaded 0, added 0, done
+
+Done in 13.2s
+(node:1) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)

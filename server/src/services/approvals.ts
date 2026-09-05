@@ -7,6 +7,7 @@ import { agentService } from "./agents.js";
 import { budgetService } from "./budgets.js";
 import { notifyHireApproved } from "./hire-hook.js";
 import { instanceSettingsService } from "./instance-settings.js";
+import { promoteRegiaExecutionPolicyApproval } from "./regia-intake.js";
 
 export function approvalService(db: Db) {
   const agentsSvc = agentService(db);
@@ -55,6 +56,43 @@ export function approvalService(db: Db) {
       throw unprocessable(
         `Only pending or revision requested approvals can be ${targetStatus === "approved" ? "approved" : "rejected"}`,
       );
+    }
+
+    if (existing.type === "regia_execution_policy") {
+      return db.transaction(async (tx) => {
+        const current = await tx
+          .select()
+          .from(approvals)
+          .where(eq(approvals.id, id))
+          .then((rows) => rows[0] ?? null);
+        if (!current) throw notFound("Approval not found");
+        if (!canResolveStatuses.has(current.status)) {
+          if (current.status === targetStatus) return { approval: current, applied: false };
+          throw unprocessable(
+            `Only pending or revision requested approvals can be ${targetStatus === "approved" ? "approved" : "rejected"}`,
+          );
+        }
+        if (targetStatus === "approved") {
+          await promoteRegiaExecutionPolicyApproval(tx as unknown as Db, current);
+        }
+        const now = new Date();
+        const updated = await tx
+          .update(approvals)
+          .set({
+            status: targetStatus,
+            decidedByUserId,
+            decisionNote: decisionNote ?? null,
+            decidedAt: now,
+            updatedAt: now,
+          })
+          .where(and(eq(approvals.id, id), inArray(approvals.status, resolvableStatuses)))
+          .returning()
+          .then((rows) => rows[0] ?? null);
+        if (!updated) {
+          throw unprocessable("Regia execution approval changed while the decision was being applied");
+        }
+        return { approval: updated, applied: true };
+      });
     }
 
     const now = new Date();

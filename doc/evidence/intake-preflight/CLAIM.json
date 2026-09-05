@@ -1,0 +1,13 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "state": "review-approved",
+  "baseline": "e3eab571283f620d40992fbeaad11668f6bf12f6",
+  "observed_at": "2026-09-05T05:43:34.173621+00:00",
+  "scope": [
+    "server/src/__tests__/regia-intake-preflight.test.ts",
+    "doc/evidence/intake-preflight/"
+  ],
+  "authorization": "root candidate build preflight and isolated auth fixture; no live effects",
+  "reviewer": "adversarial_reviewer",
+  "review_result": "19 tests independently repeated PASS; scope is synthetic middleware/route preflight only"
+}

@@ -11,6 +11,7 @@ const mockUpdateLeaseMetadata = vi.hoisted(() => vi.fn());
 const mockUpdateExecutionWorkspace = vi.hoisted(() => vi.fn());
 const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockLoggerInfo = vi.hoisted(() => vi.fn());
+const mockGetEnvironmentById = vi.hoisted(() => vi.fn());
 
 vi.mock("../services/environment-execution-target.js", () => ({
   resolveEnvironmentExecutionTarget: mockResolveEnvironmentExecutionTarget,
@@ -28,7 +29,7 @@ vi.mock("../services/workspace-realization.js", () => ({
 vi.mock("../services/environments.js", () => ({
   environmentService: vi.fn(() => ({
     ensureLocalEnvironment: vi.fn(),
-    getById: vi.fn(),
+    getById: mockGetEnvironmentById,
     acquireLease: vi.fn(),
     releaseLease: vi.fn(),
     updateLeaseMetadata: mockUpdateLeaseMetadata,
@@ -727,5 +728,39 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     );
 
     expect(mockResolveEnvironmentExecutionTarget).not.toHaveBeenCalled();
+  });
+});
+
+describe("environmentRunOrchestrator — Regia lease binding", () => {
+  it("forwards the explicit company-binding assertion to the runtime acquire", async () => {
+    const environment = makeEnvironment("sandbox");
+    const lease = makeLease({ provider: "sandbox" });
+    mockGetEnvironmentById.mockResolvedValue(environment);
+    mockLogActivity.mockResolvedValue(undefined);
+    const acquireRunLease = vi.fn().mockResolvedValue({
+      environment,
+      lease,
+      leaseContext: { executionWorkspaceId: null, executionWorkspaceMode: null },
+    });
+    const orchestrator = environmentRunOrchestrator({} as any, {
+      environmentRuntime: makeMockRuntime({ acquireRunLease } as any),
+    });
+    await orchestrator.acquireForRun({
+      companyId: "company-1",
+      selectedEnvironmentId: environment.id,
+      localEnvironmentId: "local-env",
+      adapterType: "openclaw_gateway",
+      issueId: "issue-1",
+      heartbeatRunId: "run-1",
+      agentId: "agent-1",
+      persistedExecutionWorkspace: null,
+      executionWorkspaceSettings: null,
+      assertCompanyBinding: true,
+    });
+    expect(acquireRunLease).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: "company-1",
+      issueId: "issue-1",
+      assertCompanyBinding: true,
+    }));
   });
 });

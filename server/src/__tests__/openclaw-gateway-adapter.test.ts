@@ -77,9 +77,28 @@ async function createMockGatewayServer(options?: {
               type: "hello-ok",
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
-              features: { methods: ["connect", "agent", "agent.wait"], events: ["agent"] },
+              features: { methods: ["connect", "config.get", "agent", "agent.wait"], events: ["agent"] },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: "tenant-a" }],
+                },
+              },
             },
           }),
         );
@@ -239,11 +258,30 @@ async function createMockGatewayServerWithPairing() {
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
               features: {
-                methods: ["connect", "agent", "agent.wait", "device.pair.list", "device.pair.approve"],
+                methods: ["connect", "config.get", "agent", "agent.wait", "device.pair.list", "device.pair.approve"],
                 events: ["agent"],
               },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: "tenant-a" }],
+                },
+              },
             },
           }),
         );
@@ -405,6 +443,7 @@ describe("openclaw gateway adapter execute", () => {
         buildContext(
           {
             url: gateway.url,
+            agentId: "tenant-a",
             headers: {
               "x-openclaw-token": "gateway-token",
             },
@@ -489,7 +528,8 @@ describe("openclaw gateway adapter execute", () => {
       const payload = gateway.getAgentPayload();
       expect(payload).toBeTruthy();
       expect(payload?.idempotencyKey).toBe("run-123");
-      expect(payload?.sessionKey).toBe("paperclip:issue:issue-123");
+      expect(payload?.sessionKey).toBe("agent:tenant-a:paperclip:issue:issue-123");
+      expect(payload?.agentId).toBe("tenant-a");
       expect(String(payload?.message ?? "")).toContain("wake now");
       expect(String(payload?.message ?? "")).toContain("PAPERCLIP_RUN_ID=run-123");
       expect(String(payload?.message ?? "")).toContain("PAPERCLIP_TASK_ID=task-123");
@@ -512,7 +552,7 @@ describe("openclaw gateway adapter execute", () => {
   });
 
   it("fails fast when url is missing", async () => {
-    const result = await execute(buildContext({}));
+    const result = await execute(buildContext({ agentId: "tenant-a" }));
     expect(result.exitCode).toBe(1);
     expect(result.errorCode).toBe("openclaw_gateway_url_missing");
   });
@@ -542,6 +582,7 @@ describe("openclaw gateway adapter execute", () => {
       const result = await execute(
         buildContext({
           url: gateway.url,
+          agentId: "tenant-a",
           headers: {
             "x-openclaw-token": "gateway-token",
           },
@@ -574,6 +615,7 @@ describe("openclaw gateway adapter execute", () => {
         buildContext(
           {
             url: gateway.url,
+            agentId: "tenant-a",
             headers: {
               "x-openclaw-token": "gateway-token",
             },
@@ -621,8 +663,8 @@ describe("openclaw gateway ui build config", () => {
       envVars: "",
       envBindings: {},
       url: "wss://gateway.example/ws",
+      agentId: "remote-agent-123",
       payloadTemplateJson: JSON.stringify({
-        agentId: "remote-agent-123",
         metadata: { team: "platform" },
       }),
       runtimeServicesJson: JSON.stringify({
@@ -642,8 +684,8 @@ describe("openclaw gateway ui build config", () => {
     expect(config).toEqual(
       expect.objectContaining({
         url: "wss://gateway.example/ws",
+        agentId: "remote-agent-123",
         payloadTemplate: {
-          agentId: "remote-agent-123",
           metadata: { team: "platform" },
         },
         workspaceRuntime: {

@@ -1,0 +1,18 @@
+node:internal/fs/promises:1345
+  return new FileHandle(await PromisePrototypeThen(
+                        ^
+
+Error: EACCES: permission denied, open '/context/package.json'
+    at async open (node:internal/fs/promises:1345:25)
+    at async Object.readFile (node:internal/fs/promises:1996:14)
+    at async loadSpec (/usr/local/lib/node_modules/corepack/dist/lib/corepack.cjs:13533:17)
+    at async Engine.findProjectSpec (/usr/local/lib/node_modules/corepack/dist/lib/corepack.cjs:13785:22)
+    at async Engine.executePackageManagerRequest (/usr/local/lib/node_modules/corepack/dist/lib/corepack.cjs:13849:24)
+    at async Object.runMain (/usr/local/lib/node_modules/corepack/dist/lib/corepack.cjs:14566:7) {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/context/package.json'
+}
+
+Node.js v24.20.0

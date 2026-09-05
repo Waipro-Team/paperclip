@@ -1,0 +1,19 @@
+{
+  "run_id": "33951001006",
+  "url": "https://github.com/Waipro-Team/paperclip/actions/runs/33951001006",
+  "source_commit": "4aa9766329449d19216cdfb47124ef300570251b",
+  "temporary_artifact_directory_removed": true,
+  "artifact_files": [
+    "bootstrap.txt",
+    "build-result.json",
+    "build.txt",
+    "capacity.json",
+    "ci-cleanup.json",
+    "docker-context-lock.diff",
+    "docker-context-lock.yaml",
+    "lock-refresh-result.json",
+    "lock-refresh.txt",
+    "smoke-result.json"
+  ],
+  "verified_status": "image_auth_route_validation_and_cleanup_pass"
+}
