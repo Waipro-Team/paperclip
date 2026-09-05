@@ -1,0 +1,38 @@
+{
+  "schema": "cla360.paperclip.local-check.v1",
+  "recorded_at_utc": "2026-09-05T21:42:48.683878+00:00",
+  "completed_at_utc": "2026-09-05T21:44:01.198588+00:00",
+  "candidate_base": "a21ac20a31cc3f69c38b47699bf3eade4d1d04da",
+  "candidate_type": "working tree with reviewed changes before commit",
+  "command": [
+    "pnpm",
+    "build"
+  ],
+  "cwd": "/root/work/paperclip-portal360-reconcile-20260902",
+  "uid": 0,
+  "tool_environment": {
+    "CARGO_HOME": "/root/.cargo",
+    "PATH_prefix": "/root/.cargo/bin"
+  },
+  "exit": 0,
+  "seconds": 72.511,
+  "status": "PASS",
+  "output": {
+    "log": "global-build.log",
+    "format": "selected lines with original output line numbers",
+    "full_bytes": 40862,
+    "full_lines": 459,
+    "full_sha256": "9afcb45a5950adadab55068302aaea3ce5b66e98fb0a125a3d31d01c96c99402",
+    "full_output_persisted": false
+  },
+  "source_sha256": {
+    "packages/adapters/openclaw-gateway/README.md": "fd69d9e7f45ac5b6f8a6dbb5e51d549008df7d80d3afb0f100720336f95a534a",
+    "packages/adapters/openclaw-gateway/src/server/execute.ts": "9c5e7fcafb226310e48574dba986800afbf4a7c128fcc1b18bab1b98a9676b91",
+    "packages/adapters/openclaw-gateway/src/server/test.ts": "1b2c9d100e622cc5551fac10bfe19fa369976cdc03b915f0d998fd4cebd94d27",
+    "packages/adapters/openclaw-gateway/src/server/trusted-boundary.ts": "a28fb7c9f03b9d1cb8ab7b831dee24d52a26d393a63f9e023c7e2f4b4b932472",
+    "packages/adapters/openclaw-gateway/src/server/trusted-boundary.test.ts": "3d6731687548588201b21b1bc1847b3ef1fbe3c660f409d51e8c5744428d438b",
+    "server/src/__tests__/heartbeat-comment-wake-batching.test.ts": "3999bfb68f0626777eaf64f784007357ed1abf47044f91bc748f7b17f116158e",
+    "server/src/__tests__/low-trust-red-team-routes.test.ts": "6eaf4c5a0d35b045f3aa172d59369cb3c433f0422de5d41b2fb207d08578cffd"
+  },
+  "limits": "Local compile/build result only; no full test suite, deployed runtime or E2E assertion."
+}

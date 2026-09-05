@@ -80,16 +80,15 @@ elif [[ ! -t 0 ]]; then
   comment="$(cat)"
 fi
 
-require_command jq
+require_command node
 
 payload="$(
-  jq -nc \
-    --arg status "$status" \
-    --arg comment "$comment" \
-    '
-      (if $status == "" then {} else {status: $status} end) +
-      (if $comment == "" then {} else {comment: $comment} end)
-    '
+  PAPERCLIP_UPDATE_STATUS="$status" PAPERCLIP_UPDATE_COMMENT="$comment" node -e '
+    const payload = {};
+    if (process.env.PAPERCLIP_UPDATE_STATUS) payload.status = process.env.PAPERCLIP_UPDATE_STATUS;
+    if (process.env.PAPERCLIP_UPDATE_COMMENT) payload.comment = process.env.PAPERCLIP_UPDATE_COMMENT;
+    process.stdout.write(JSON.stringify(payload));
+  '
 )"
 
 if [[ "$dry_run" == "1" ]]; then
@@ -136,7 +135,19 @@ while :; do
       exit 1
     fi
     if [[ -n "$status" ]]; then
-      returned_status="$(jq -r '.status // empty' <<<"$body" 2>/dev/null || true)"
+      returned_status="$(
+        node -e '
+          let input = "";
+          process.stdin.setEncoding("utf8");
+          process.stdin.on("data", (chunk) => { input += chunk; });
+          process.stdin.on("end", () => {
+            try {
+              const value = JSON.parse(input);
+              if (typeof value.status === "string") process.stdout.write(value.status);
+            } catch {}
+          });
+        ' <<<"$body" 2>/dev/null || true
+      )"
       if [[ "$returned_status" != "$status" ]]; then
         printf 'Issue update FAILED: server echoed status %s instead of requested %s.\n' "${returned_status:-<none>}" "$status" >&2
         printf '%s\n' "$body" >&2

@@ -202,6 +202,41 @@ describe("approval routes idempotent retries", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
+  it("keeps a rejected Regia execution policy fail-closed without queuing a wake", async () => {
+    mockApprovalService.getById.mockResolvedValue({
+      id: "approval-regia",
+      companyId: "company-1",
+      type: "regia_execution_policy",
+      status: "pending",
+      payload: {},
+    });
+    mockApprovalService.reject.mockResolvedValue({
+      approval: {
+        id: "approval-regia",
+        companyId: "company-1",
+        type: "regia_execution_policy",
+        status: "rejected",
+        payload: {},
+      },
+      applied: true,
+    });
+    mockIssueApprovalService.listIssuesForApproval.mockResolvedValue([{
+      id: "issue-regia",
+      assigneeAgentId: "agent-regia",
+    }]);
+
+    const res = await request(await createApp())
+      .post("/api/approvals/approval-regia/reject")
+      .send({ decisionNote: "Keep execution blocked" });
+
+    expect(res.status).toBe(200);
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
+    expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: "approval.rejected",
+      entityId: "approval-regia",
+    }));
+  });
+
   it("rejects approval decisions for companies outside the caller scope", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-2",
@@ -218,6 +253,27 @@ describe("approval routes idempotent retries", () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("Approval not found");
     expect(mockApprovalService.approve).not.toHaveBeenCalled();
+  });
+
+  it("rejects direct creation of a Regia execution policy approval", async () => {
+    const res = await request(await createApp())
+      .post("/api/companies/company-1/approvals")
+      .send({
+        type: "regia_execution_policy",
+        payload: {
+          issueId: "issue-1",
+          receiptActivityId: "receipt-1",
+          requestFingerprint: "a".repeat(64),
+          bindingDigest: "b".repeat(64),
+          policyDigest: "c".repeat(64),
+          executionAuthorized: true,
+        },
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain("Regia intake transaction");
+    expect(mockApprovalService.create).not.toHaveBeenCalled();
+    expect(mockIssueApprovalService.linkManyForApproval).not.toHaveBeenCalled();
   });
 
   it("rejects approval revision requests for companies outside the caller scope", async () => {

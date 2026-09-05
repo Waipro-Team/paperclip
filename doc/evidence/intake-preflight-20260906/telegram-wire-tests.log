@@ -1,0 +1,27 @@
+
+ RUN  v4.1.10 /root/work/paperclip-portal360-reconcile-20260902/server
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > accepts the real board-key session and pinned binding without work or polling
+telegram_wire_observation {"options":{},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":200},{"method":"POST","path":"/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight","status":200}],"receiver":{"exit":0,"output":"fabbry_preflight_ok","calls":{"telegram":["getMe"],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > blocks old endpoint before Telegram, journal, intake, or polling
+telegram_wire_observation {"options":{"oldEndpoint":true},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":200},{"method":"POST","path":"/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight","status":404}],"receiver":{"exit":1,"output":"fabbry_receiver_startup_blocked","calls":{"telegram":[],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > blocks foreign tenant before Telegram, journal, intake, or polling
+telegram_wire_observation {"options":{"foreignCompany":true},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":200},{"method":"POST","path":"/api/companies/22222222-2222-4222-8222-222222222222/regia/intake/preflight","status":403}],"receiver":{"exit":1,"output":"fabbry_receiver_startup_blocked","calls":{"telegram":[],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > blocks foreign Regia binding before Telegram, journal, intake, or polling
+telegram_wire_observation {"options":{"foreignAgent":true},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":200},{"method":"POST","path":"/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight","status":422}],"receiver":{"exit":1,"output":"fabbry_receiver_startup_blocked","calls":{"telegram":[],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > blocks agent credential at the real session endpoint
+telegram_wire_observation {"options":{"agentCredential":true},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":401}],"receiver":{"exit":1,"output":"fabbry_receiver_startup_blocked","calls":{"telegram":[],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+stdout | src/__tests__/telegram-intake-wire.test.ts > Portal Python receiver → authenticated Express API → real PostgreSQL > blocks wrong pinned board user at the real session endpoint
+telegram_wire_observation {"options":{"wrongExpectedUser":true},"runtimeUid":10001,"trace":[{"method":"GET","path":"/api/auth/get-session","status":200}],"receiver":{"exit":1,"output":"fabbry_receiver_startup_blocked","calls":{"telegram":[],"journal":0,"poll":0},"stateCreated":false,"productionBase":"http://127.0.0.1:3100"},"domainCounts":{"issues":0,"goals":0,"approvals":0,"receipts":0,"wakes":0,"leases":0,"runs":0}}
+
+ ✓ src/__tests__/telegram-intake-wire.test.ts (6 tests) 13120ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  22:40:09
+   Duration  16.34s (transform 5.97s, setup 146ms, import 2.88s, tests 13.12s, environment 0ms)

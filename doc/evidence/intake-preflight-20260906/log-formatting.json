@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "operation": "Remove empty trailing lines at EOF from Git presentation only",
+  "originalLogsPreservedOnCanonicalServer": true,
+  "originalLogsExcludedFromGit": true,
+  "historicalManifestAndReviewLogHashesReferToOriginalBytes": true,
+  "records": [
+    {
+      "gitLog": "telegram-wire-first-run.log",
+      "originalServerLog": "telegram-wire-first-run.raw.log",
+      "originalSha256": "d0c0acc7e8a7881595a8291f30ea1cc9e063cbc9c39f10f0aa72cb69a8674440",
+      "gitSha256": "0919272e6f4ccda969fa468322fd36107082a56ff9efb39f20c7f37c2c898876",
+      "removedTrailingNewlines": 1,
+      "contentBeforeTrailingNewlinesEqual": true
+    },
+    {
+      "gitLog": "telegram-wire-tests.log",
+      "originalServerLog": "telegram-wire-tests.raw.log",
+      "originalSha256": "b8070c122b0e2f1d27d85bc0c0079d0ebb68197d4f221eb212be9cb8d99cfbad",
+      "gitSha256": "96ab1d772ca177bf51b68c8c4044062f18f626aac73616894d6d07238593af7d",
+      "removedTrailingNewlines": 1,
+      "contentBeforeTrailingNewlinesEqual": true
+    }
+  ]
+}

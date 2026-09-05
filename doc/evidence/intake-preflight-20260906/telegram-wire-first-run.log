@@ -1,0 +1,116 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/root/work/paperclip-portal360-reconcile-20260902/server[39m
+
+ [31m❯[39m src/__tests__/telegram-intake-wire.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m6 failed[39m[2m)[22m[33m 11821[2mms[22m[39m
+[31m     [31m×[31m accepts the real board-key session and pinned binding without work or polling[39m[32m 228[2mms[22m[39m
+[31m     [31m×[31m blocks old endpoint before Telegram, journal, intake, or polling[39m[32m 148[2mms[22m[39m
+[31m     [31m×[31m blocks foreign tenant before Telegram, journal, intake, or polling[39m[32m 150[2mms[22m[39m
+[31m     [31m×[31m blocks foreign Regia binding before Telegram, journal, intake, or polling[39m[32m 139[2mms[22m[39m
+[31m     [31m×[31m blocks agent credential at the real session endpoint[39m[32m 135[2mms[22m[39m
+[31m     [31m×[31m blocks wrong pinned board user at the real session endpoint[39m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m6 failed[39m[22m[90m (6)[39m
+[2m   Start at [22m 22:36:45
+[2m   Duration [22m 15.17s[2m (transform 5.85s, setup 96ms, import 3.09s, tests 11.82s, environment 0ms)[22m
+
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 6 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22maccepts the real board-key session and pinned binding without work or polling
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m runCase src/__tests__/telegram-intake-wire.test.ts:[2m264:109[22m[39m
+    [90m262|[39m       [34mexpect[39m(result[33m.[39mstateCreated)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m263|[39m       [34mexpect[39m(result[33m.[39mproductionBase)[33m.[39m[34mtoBe[39m([32m"http://127.0.0.1:3100"[39m)[33m;[39m
+    [90m264|[39m       expect(trace.every((item) => item.path === SESSION || item.path.…
+    [90m   |[39m                                                                                                             [31m^[39m
+    [90m265|[39m       [34mexpect[39m([35mawait[39m [34mdomainCounts[39m())[33m.[39m[34mtoEqual[39m(before)[33m;[39m
+    [90m266|[39m       [35mreturn[39m { result[33m,[39m trace }[33m;[39m
+[90m [2m❯[22m src/__tests__/telegram-intake-wire.test.ts:[2m276:31[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22mblocks old endpoint before Telegram, journal, intake, or polling
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22mblocks foreign tenant before Telegram, journal, intake, or polling
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22mblocks foreign Regia binding before Telegram, journal, intake, or polling
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m runCase src/__tests__/telegram-intake-wire.test.ts:[2m264:109[22m[39m
+    [90m262|[39m       [34mexpect[39m(result[33m.[39mstateCreated)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m263|[39m       [34mexpect[39m(result[33m.[39mproductionBase)[33m.[39m[34mtoBe[39m([32m"http://127.0.0.1:3100"[39m)[33m;[39m
+    [90m264|[39m       expect(trace.every((item) => item.path === SESSION || item.path.…
+    [90m   |[39m                                                                                                             [31m^[39m
+    [90m265|[39m       [34mexpect[39m([35mawait[39m [34mdomainCounts[39m())[33m.[39m[34mtoEqual[39m(before)[33m;[39m
+    [90m266|[39m       [35mreturn[39m { result[33m,[39m trace }[33m;[39m
+[90m [2m❯[22m src/__tests__/telegram-intake-wire.test.ts:[2m294:31[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22mblocks agent credential at the real session endpoint
+[31m[1mAssertionError[22m: expected { issues: +0, goals: +0, …(5) } to deeply equal { issues: +0, goals: +0, …(5) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "approvals": 0,[22m
+[2m    "goals": 0,[22m
+[2m    "issues": 0,[22m
+[2m    "leases": 0,[22m
+[32m-   "receipts": 0,[39m
+[31m+   "receipts": 1,[39m
+[2m    "runs": 0,[22m
+[2m    "wakes": 0,[22m
+[2m  }[22m
+
+[36m [2m❯[22m runCase src/__tests__/telegram-intake-wire.test.ts:[2m265:36[22m[39m
+    [90m263|[39m       [34mexpect[39m(result[33m.[39mproductionBase)[33m.[39m[34mtoBe[39m([32m"http://127.0.0.1:3100"[39m)[33m;[39m
+    [90m264|[39m       expect(trace.every((item) => item.path === SESSION || item.path.…
+    [90m265|[39m       [34mexpect[39m([35mawait[39m [34mdomainCounts[39m())[33m.[39m[34mtoEqual[39m(before)[33m;[39m
+    [90m   |[39m                                    [31m^[39m
+    [90m266|[39m       [35mreturn[39m { result[33m,[39m trace }[33m;[39m
+    [90m267|[39m     } [35mfinally[39m {
+[90m [2m❯[22m src/__tests__/telegram-intake-wire.test.ts:[2m311:31[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/telegram-intake-wire.test.ts[2m > [22mPortal Python receiver → authenticated Express API → real PostgreSQL[2m > [22mblocks wrong pinned board user at the real session endpoint
+[31m[1mAssertionError[22m: expected [ +0, +0, +0, 1, +0, +0, +0 ] to deeply equal [ +0, +0, +0, +0, +0, +0, +0 ][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  [[22m
+[2m    0,[22m
+[2m    0,[22m
+[2m    0,[22m
+[32m-   0,[39m
+[31m+   1,[39m
+[2m    0,[22m
+[2m    0,[22m
+[2m    0,[22m
+[2m  ][22m
+
+[36m [2m❯[22m runCase src/__tests__/telegram-intake-wire.test.ts:[2m225:35[22m[39m
+    [90m223|[39m   } [33m=[39m {}) {
+    [90m224|[39m     [35mconst[39m before [33m=[39m [35mawait[39m [34mdomainCounts[39m()[33m;[39m
+    [90m225|[39m     [34mexpect[39m([33mObject[39m[33m.[39m[34mvalues[39m(before))[33m.[39m[34mtoEqual[39m([33mArray[39m([34m7[39m)[33m.[39m[34mfill[39m([34m0[39m))[33m;[39m
+    [90m   |[39m                                   [31m^[39m
+    [90m226|[39m     [35mconst[39m trace[33m:[39m [33mTrace[39m[] [33m=[39m [][33m;[39m
+    [90m227|[39m     [35mconst[39m app [33m=[39m [34mexpress[39m()[33m;[39m
+[90m [2m❯[22m src/__tests__/telegram-intake-wire.test.ts:[2m311:31[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯[22m[39m

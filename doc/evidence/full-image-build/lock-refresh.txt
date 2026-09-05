@@ -1,0 +1,46 @@
+Scope: all 35 workspace projects
+Progress: resolved 1, reused 0, downloaded 0, added 0
+
+   ╭───────────────────────────────────────────────────────────────────╮
+   │                                                                   │
+   │                Update available! 9.15.4 → 11.25.0.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.25.0   │
+   │         Run "corepack install -g pnpm@11.25.0" to update.         │
+   │                                                                   │
+   ╰───────────────────────────────────────────────────────────────────╯
+
+Progress: resolved 15, reused 0, downloaded 0, added 0
+Progress: resolved 21, reused 0, downloaded 0, added 0
+Progress: resolved 37, reused 0, downloaded 0, added 0
+server                                   |  WARN  deprecated @types/sharp@0.32.0
+Progress: resolved 63, reused 0, downloaded 0, added 0
+Progress: resolved 76, reused 0, downloaded 0, added 0
+Progress: resolved 104, reused 0, downloaded 0, added 0
+Progress: resolved 130, reused 0, downloaded 0, added 0
+Progress: resolved 258, reused 0, downloaded 0, added 0
+Progress: resolved 365, reused 0, downloaded 0, added 0
+Progress: resolved 489, reused 0, downloaded 0, added 0
+Progress: resolved 490, reused 0, downloaded 0, added 0
+Progress: resolved 501, reused 0, downloaded 0, added 0
+Progress: resolved 525, reused 0, downloaded 0, added 0
+Progress: resolved 542, reused 0, downloaded 0, added 0
+Progress: resolved 566, reused 0, downloaded 0, added 0
+Progress: resolved 603, reused 0, downloaded 0, added 0
+Progress: resolved 631, reused 0, downloaded 0, added 0
+Progress: resolved 711, reused 0, downloaded 0, added 0
+Progress: resolved 833, reused 0, downloaded 0, added 0
+Progress: resolved 856, reused 0, downloaded 0, added 0
+Progress: resolved 874, reused 0, downloaded 0, added 0
+Progress: resolved 921, reused 0, downloaded 0, added 0
+Progress: resolved 1014, reused 0, downloaded 0, added 0
+Progress: resolved 1187, reused 0, downloaded 0, added 0
+Progress: resolved 1220, reused 0, downloaded 0, added 0
+Progress: resolved 1267, reused 0, downloaded 0, added 0
+Progress: resolved 1418, reused 0, downloaded 0, added 0
+ WARN  5 deprecated subdependencies found: @esbuild-kit/core-utils@3.3.2, @esbuild-kit/esm-loader@2.6.5, @ungap/structured-clone@1.3.0, glob@10.5.0, node-domexception@1.0.0
+Progress: resolved 1421, reused 0, downloaded 0, added 0
+Progress: resolved 1421, reused 0, downloaded 0, added 0, done
+
+Done in 33.9s
+(node:1) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)

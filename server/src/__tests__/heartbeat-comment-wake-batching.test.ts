@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { and, asc, eq } from "drizzle-orm";
 import { WebSocketServer } from "ws";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
   agentWakeupRequests,
@@ -21,8 +21,35 @@ import {
 } from "./helpers/embedded-postgres.ts";
 import { parseWakePayloadFromMessage } from "./helpers/wake-message.ts";
 
+// These suites exercise wake batching / content redaction over an in-process
+// gateway fixture. They do not attest a real OpenClaw execution boundary.
+// Only snapshots emitted by a currently registered fixture can mock that gate;
+// request/config checks and the real adapter guard suites remain intact.
+const controlledGatewayFixtures = vi.hoisted(() => new Map<string, string>());
+
+vi.mock(import("../../../packages/adapters/openclaw-gateway/src/server/isolation.js"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    validateOpenClawExecutionIsolation: (...args: Parameters<typeof actual.validateOpenClawExecutionIsolation>) => {
+      const [snapshot, agentId, params] = args;
+      const fixtureId = snapshot && typeof snapshot === "object"
+        ? (snapshot as Record<string, unknown>).controlledGatewayFixture
+        : undefined;
+      if (typeof fixtureId !== "string" || controlledGatewayFixtures.get(fixtureId) !== agentId) {
+        return actual.validateOpenClawExecutionIsolation(...args);
+      }
+      const request = actual.validateOpenClawRequestIsolation(params, agentId);
+      return request.ok ? actual.validateOpenClawIsolationSnapshot(snapshot, agentId) : request;
+    },
+  };
+});
+
+import { validateOpenClawExecutionIsolation } from "../../../packages/adapters/openclaw-gateway/src/server/isolation.js";
+
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
+const TEST_OPENCLAW_AGENT_ID = "paperclip-heartbeat-test-agent";
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(
@@ -43,7 +70,61 @@ async function closeDbClient(db: ReturnType<typeof createDb> | undefined) {
   await db?.$client?.end?.({ timeout: 0 });
 }
 
+describe("controlled gateway transport boundary", () => {
+  function snapshot(fixtureId: string) {
+    return {
+      controlledGatewayFixture: fixtureId,
+      sourceConfig: {
+        agents: {
+          defaults: { sandbox: { mode: "all", scope: "session" } },
+          list: [{ id: TEST_OPENCLAW_AGENT_ID }],
+        },
+      },
+    };
+  }
+
+  const params = () => ({
+    agentId: TEST_OPENCLAW_AGENT_ID,
+    sessionKey: "agent:" + TEST_OPENCLAW_AGENT_ID + ":fixture",
+  });
+
+  it("admits only the registered fixture lifetime and keeps stock snapshots denied", () => {
+    const fixtureId = randomUUID();
+    const config = snapshot(fixtureId);
+    expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toMatchObject({
+      ok: false,
+      code: "openclaw_gateway_execution_isolation_unverified",
+    });
+    controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+    try {
+      expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toEqual({ ok: true });
+      expect(validateOpenClawExecutionIsolation({ sourceConfig: config.sourceConfig }, TEST_OPENCLAW_AGENT_ID, params()))
+        .toMatchObject({ ok: false, code: "openclaw_gateway_execution_isolation_unverified" });
+    } finally {
+      controlledGatewayFixtures.delete(fixtureId);
+    }
+    expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toMatchObject({ ok: false });
+  });
+
+  it("preserves request and configuration rejection inside the transport fixture", () => {
+    const fixtureId = randomUUID();
+    controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+    try {
+      expect(validateOpenClawExecutionIsolation(snapshot(fixtureId), TEST_OPENCLAW_AGENT_ID, {
+        ...params(), model: "unverified-model",
+      })).toMatchObject({ ok: false, code: "openclaw_gateway_request_route_unverified" });
+      const unsafe = snapshot(fixtureId);
+      unsafe.sourceConfig.agents.defaults.sandbox.mode = "off";
+      expect(validateOpenClawExecutionIsolation(unsafe, TEST_OPENCLAW_AGENT_ID, params()))
+        .toMatchObject({ ok: false, code: "openclaw_gateway_sandbox_not_enforced" });
+    } finally {
+      controlledGatewayFixtures.delete(fixtureId);
+    }
+  });
+});
+
 async function createControlledGatewayServer() {
+  const fixtureId = randomUUID();
   const server = createServer();
   const wss = new WebSocketServer({ server });
   const agentPayloads: Array<Record<string, unknown>> = [];
@@ -83,9 +164,29 @@ async function createControlledGatewayServer() {
               type: "hello-ok",
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
-              features: { methods: ["connect", "agent", "agent.wait"], events: ["agent"] },
+              features: { methods: ["connect", "config.get", "agent", "agent.wait"], events: ["agent"] },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              controlledGatewayFixture: fixtureId,
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: TEST_OPENCLAW_AGENT_ID }],
+                },
+              },
             },
           }),
         );
@@ -145,6 +246,8 @@ async function createControlledGatewayServer() {
     throw new Error("Failed to resolve test server address");
   }
 
+  controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+
   return {
     url: `ws://127.0.0.1:${address.port}`,
     getAgentPayloads: () => agentPayloads,
@@ -154,6 +257,7 @@ async function createControlledGatewayServer() {
       firstWaitGate = Promise.resolve();
     },
     close: async () => {
+      controlledGatewayFixtures.delete(fixtureId);
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
@@ -439,6 +543,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -640,6 +745,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -788,6 +894,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -984,6 +1091,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -1004,6 +1112,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -1184,6 +1293,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -1352,6 +1462,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -1565,6 +1676,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",
@@ -1718,6 +1830,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -1738,6 +1851,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -1921,6 +2035,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -1941,6 +2056,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
           status: "idle",
           adapterType: "openclaw_gateway",
           adapterConfig: {
+            agentId: TEST_OPENCLAW_AGENT_ID,
             url: gateway.url,
             headers: {
               "x-openclaw-token": "gateway-token",
@@ -2069,6 +2185,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
         status: "idle",
         adapterType: "openclaw_gateway",
         adapterConfig: {
+          agentId: TEST_OPENCLAW_AGENT_ID,
           url: gateway.url,
           headers: {
             "x-openclaw-token": "gateway-token",

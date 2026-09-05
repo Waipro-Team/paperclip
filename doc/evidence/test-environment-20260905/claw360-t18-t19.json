@@ -1,0 +1,17 @@
+{
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "/usr/local/bin/node",
+    "--input-type=module"
+  ],
+  "stdin_javascript": "import {startVitest} from 'vitest/node';\nimport {mkdtemp, rm} from 'node:fs/promises';\nconst scratch = await mkdtemp('/tmp/pe-vitest-');\ntry {\n  await startVitest('test', ['src/execution-target-stdin-race.test.ts'], {\n    root: '/root/work/paperclip-portal360-reconcile-20260902/packages/adapter-utils',\n    config: false, cache: false, watch: false,\n    testNamePattern: 'T18|T19', reporters: ['verbose'],\n    exclude: ['**/dist/**']\n  }, {cacheDir: scratch});\n} finally {\n  await rm(scratch, {recursive:true, force:true});\n}\n",
+  "run_user": "claw360",
+  "uid": 10001,
+  "exit": 0,
+  "seconds": 3.225,
+  "log": "claw360-t18-t19.log",
+  "config_note": "Package has no own Vitest config. Programmatic config:false selects same default project while avoiding root workspace UI config and root-owned .vite-temp. No source/config/ACL changes."
+}

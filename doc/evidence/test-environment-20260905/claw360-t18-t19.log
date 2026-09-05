@@ -1,0 +1,42 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/root/work/paperclip-portal360-reconcile-20260902/packages/adapter-utils[39m
+
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mdelivers a stdin file that appears empty first and then gets content
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mkeeps polling after a malformed file and still delivers a later valid file
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mdoes not close the stream on a later stdinEnd while an earlier file awaits retry
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mdrops a permanently malformed file after the retry limit and writes an error event
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mholds a later stdin file until the missing earlier file appears
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mfails loud and advances past a missing stdin file after the retry limit
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mserializes host stdin writes so a slow earlier write still lands first
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mholds stdinEnd on stop until an earlier pending stdin write lands first
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mfinalizes the command-managed host write with an atomic rename onto the .json path
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mstdin file race (parent PAP-4037)[2m > [22mnever exposes a partial .json file under a concurrent reader (command-managed host write)
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT1 exits within a bounded time when its session directory disappears with no message ever sent
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT2 leaves neither the wrapper nor a stubborn child alive after stop()
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT3 exits on its own when the child exits first and no stdinEnd is ever sent
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT4 stopping one session leaves a sibling session's wrapper and child alive
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT5 still writes both control messages, finishes fast, and warns never after a forged exit event the live poll reads early
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT14 a forged exit event alone does not shorten the wait when the wrapper never truly runs
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT6 issues no operating-system signal from the host during stop()
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT8 running terminate() a second time, after the child already exited, is a safe no-op
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT9 exits with an error event when sessionDir is a symbolic link
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT10 the emitted wrapper strips its own session env vars from the child
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT11 each wrapper source has exactly one spawn call site and every kill call is child.kill()
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT12 stop() finishes well inside the shutdown budget and logs no warning after a normal child exit
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT13 warns and still removes sessionDir when the wrapper never acknowledges and never exits
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT15 latches on a lost session identity: a recreated control directory cannot keep the wrapper or its child alive
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT16 accepts a zero creation time when the filesystem does not report birth time
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT17 fails closed at capture when the reported creation time follows the change time, so a change-time copy never passes as a real creation time
+ [32m✓[39m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT18 latches on an EACCES lstat failure on sessionDir during verification, not only on a removed directory[32m 276[2mms[22m[39m
+ [32m✓[39m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT19 latches on an EACCES lstat failure on stdinDir during verification, even though sessionDir itself still stats cleanly[32m 265[2mms[22m[39m
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT20 refuses to write through a probe path a sandbox peer pre-created as a symbolic link, and leaves that link and its target untouched
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT21 still removes its own probe file normally when no peer ever replaces it
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT22 leaves a peer's replacement file untouched instead of deleting it
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT23 leaves a peer's replacement directory untouched instead of deleting it
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT24 leaves a peer's replacement symbolic link and its target untouched instead of deleting or following it
+ [2m[90m↓[39m[22m src/execution-target-stdin-race.test.ts[2m > [22mdeterministic remote process-session wrapper shutdown (PAP-5316)[2m > [22mT25 fails closed at capture when its own probe file's identity cannot be read, so no orphan wrapper or child ever starts polling
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[2m | [22m[33m32 skipped[39m[90m (34)[39m
+[2m   Start at [22m 20:29:40
+[2m   Duration [22m 2.82s[2m (transform 1.47s, setup 0ms, import 2.13s, tests 545ms, environment 0ms)[22m

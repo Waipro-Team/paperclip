@@ -45,6 +45,25 @@ describe("embedded Postgres native runtime", () => {
     expect(fs.readlinkSync(path.join(tempDir, "libicuuc.so.60"))).toBe("libicuuc.so.60.2");
   });
 
+  it.runIf(process.platform !== "win32")(
+    "does not require directory write access after aliases are prepared",
+    async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-embedded-pg-libs-"));
+      tempDirs.push(tempDir);
+      fs.writeFileSync(path.join(tempDir, "libcrypto.so.1.1"), "");
+
+      await ensureLinuxSharedLibraryAliases(tempDir);
+      fs.chmodSync(tempDir, 0o555);
+
+      try {
+        await expect(ensureLinuxSharedLibraryAliases(tempDir)).resolves.toEqual([]);
+        expect(fs.readlinkSync(path.join(tempDir, "libcrypto.so.1"))).toBe("libcrypto.so.1.1");
+      } finally {
+        fs.chmodSync(tempDir, 0o755);
+      }
+    },
+  );
+
   it("keeps the child process API untouched while preparing the runtime", async () => {
     const originalSpawn = childProcess.spawn;
 

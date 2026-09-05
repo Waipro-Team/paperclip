@@ -1,0 +1,14 @@
+{
+  "baseline": "8233a4a0cf165375a6236a7ee074b649fc3fb791",
+  "files_sha256": {
+    ".github/workflows/portal360-image-preflight.yml": "bf38bf0a4d03b7b6ad208e8261ed157f026261d5baa295a94636f24eb82a9aa1",
+    "doc/evidence/full-image-ci/CLAIM.json": "0d33ce780b9b407d3dd1b053fbb4d2d2c08d4e3d136fbfa69357d53e220e20af",
+    "doc/evidence/full-image-ci/RECEIPT.md": "b5c2cb99a48d3d126ff179b856a8f5ea1b6439d684fcbbe194274b5904b203f6",
+    "doc/evidence/full-image-ci/tests.txt": "e19a86747084065fc6026e9e5463e2291a2e56061843e8a27e0424f4fed284be",
+    "scripts/portal360-image-preflight/build-candidate.py": "c22a8c067daf02cd0b3776603113f88234dd2fa2d299b5ff3479fac0fd666264",
+    "scripts/portal360-image-preflight/preflight_config.py": "54e698dfd46decdd391401c8d4e35a38516fb3e7e9d28605db00f9940c19cdc8",
+    "scripts/portal360-image-preflight/prepare-lock-context.py": "432e29a8aaa6f72c3e8b7c307aeae65323a739909fb85c0cc1b6bb89f2a59175",
+    "scripts/portal360-image-preflight/smoke-image.py": "4579f5a8e2c017936445e75e6984b094c696345eb4ff9fe7f2ca45f9e6e0e013",
+    "scripts/portal360-image-preflight/test_preflight_config.py": "4bc790e3cdbe83ec2236a35953d5831d052b881380eeb7da1131b7ed13847e93"
+  }
+}

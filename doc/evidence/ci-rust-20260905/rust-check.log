@@ -1,0 +1,11 @@
+    Checking paperclip-runner-core v0.0.0 (/root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner/runner/crates/runner-core)
+warning: function `validate_tool_result_contract` is never used
+   --> crates/runner-core/src/provider_bridge.rs:953:4
+    |
+953 | fn validate_tool_result_contract(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `paperclip-runner-core` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.53s

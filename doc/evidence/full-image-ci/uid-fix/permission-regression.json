@@ -1,0 +1,31 @@
+{
+  "image_id": "sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
+  "timestamp": "2026-09-05T06:50:21.314794+00:00",
+  "scope": "Synthetic file permissions and temporary cache only; no pnpm install, network or application execution",
+  "cases": [
+    {
+      "container": "portal360-context-owner-2541674-0",
+      "user": "0:0",
+      "exit_code": 42,
+      "probe": {
+        "uid": 0,
+        "error_code": "EACCES"
+      },
+      "container_removed": true
+    },
+    {
+      "container": "portal360-context-owner-2541674-1001",
+      "user": "1001:1001",
+      "exit_code": 0,
+      "probe": {
+        "uid": 1001,
+        "context_read": true,
+        "context_write": true,
+        "temporary_cache_write": true
+      },
+      "container_removed": true
+    }
+  ],
+  "temporary_context_removed": true,
+  "status": "permission_regression_pass"
+}

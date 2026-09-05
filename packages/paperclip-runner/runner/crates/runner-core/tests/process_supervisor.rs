@@ -174,3 +174,110 @@ fn oversized_harness_stdout_frame_is_rejected() {
         .terminate_group()
         .expect("oversized-frame harness should be cleaned up");
 }
+
+#[test]
+fn process_exit_waits_for_stdout_and_closes_inherited_writer_handles() {
+    let mut process = SupervisedProcess::spawn(
+        &PathBuf::from("/bin/sh"),
+        &[
+            "-c".to_owned(),
+            "sleep 30 & printf 'queued-output\\n'; exit 7".to_owned(),
+        ],
+        Duration::from_millis(50),
+        1024,
+    )
+    .expect("provider with an inherited stdout writer should start");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while process.try_wait().expect("inspect exited leader").is_none() {
+        assert!(std::time::Instant::now() < deadline, "leader did not exit");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(
+        process
+            .try_wait_after_stdout()
+            .expect("reap exited leader and inherited writer")
+            .is_none(),
+        "process exit must not overtake unread stdout"
+    );
+    let mut lines = Vec::new();
+    let exit = loop {
+        assert!(std::time::Instant::now() < deadline, "stdout did not drain");
+        if let Some(line) = process
+            .receive_stdout_line(Duration::from_millis(10))
+            .expect("read queued provider output")
+        {
+            lines.push(line);
+        }
+        if let Some(exit) = process
+            .try_wait_after_stdout()
+            .expect("observe exit after stdout closes")
+        {
+            break exit;
+        }
+    };
+    assert_eq!(lines, vec!["queued-output"]);
+    assert_eq!(exit.exit_code, Some(7));
+    assert!(!exit.success);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn exited_process_fails_boundedly_when_a_detached_writer_keeps_stdout_open() {
+    struct DetachedGroupCleanup(u32);
+    impl Drop for DetachedGroupCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("kill")
+                .args(["-KILL", "--", &format!("-{}", self.0)])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    let mut process = SupervisedProcess::spawn(
+        &PathBuf::from("/bin/sh"),
+        &[
+            "-c".to_owned(),
+            "setsid /bin/sh -c 'echo detached:$$; sleep 30' & read marker; printf 'queued-output\\n'; exit 7".to_owned(),
+        ],
+        Duration::from_millis(50),
+        1024,
+    )
+    .expect("provider with a detached stdout writer should start");
+    let detached_pid = process
+        .receive_stdout_line(Duration::from_secs(1))
+        .expect("detached writer identity should be readable")
+        .expect("detached writer should report its identity")
+        .strip_prefix("detached:")
+        .expect("expected detached writer identity")
+        .parse::<u32>()
+        .expect("detached writer identity should be a PID");
+    let _cleanup = DetachedGroupCleanup(detached_pid);
+    process.send(&json!("finish")).expect("release the leader");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    while process.try_wait().expect("inspect exited leader").is_none() {
+        assert!(std::time::Instant::now() < deadline, "leader did not exit");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let mut lines = Vec::new();
+    let error = loop {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "detached stdout writer left the exit poll unbounded"
+        );
+        if let Some(line) = process
+            .receive_stdout_line(Duration::from_millis(1))
+            .expect("read queued output before the drain deadline")
+        {
+            lines.push(line);
+        }
+        match process.try_wait_after_stdout() {
+            Err(error) => break error,
+            Ok(None) => {}
+            Ok(Some(_)) => panic!("an unclosed output stream must not publish normal exit"),
+        }
+    };
+    assert_eq!(lines, vec!["queued-output"]);
+    assert!(error.to_string().contains("stdout did not close"));
+}

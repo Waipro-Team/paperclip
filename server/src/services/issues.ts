@@ -5593,6 +5593,39 @@ export function issueService(db: Db) {
     clearCheckoutRunIfTerminal,
     addStopRelayCommentIfNeeded,
 
+    // Explicit import inventory only: callers must authorize board company-scope
+    // access. Ordinary list() retains its visibility and actor filtering.
+    listImportInventory: async (companyId: string, pagination: { limit: number; offset: number }) => {
+      const limit = clampIssueListLimit(pagination.limit);
+      const offset = Math.max(0, Math.floor(pagination.offset));
+      return db.transaction(async (tx) => {
+        const [counts] = await tx.select({ total: sql<number>`count(*)::int` })
+          .from(issues).where(eq(issues.companyId, companyId));
+        const rows = await tx.select({
+          id: issues.id,
+          companyId: issues.companyId,
+          description: issues.description,
+          status: issues.status,
+          assigneeAgentId: issues.assigneeAgentId,
+          assigneeUserId: issues.assigneeUserId,
+          hiddenAt: issues.hiddenAt,
+          harnessKind: issues.harnessKind,
+          updatedAt: issues.updatedAt,
+        }).from(issues).where(eq(issues.companyId, companyId))
+          .orderBy(asc(issues.createdAt), asc(issues.id)).limit(limit).offset(offset);
+        return {
+          schema: "paperclip.issue-import-inventory.v1" as const,
+          companyId,
+          visibility: "all" as const,
+          totalCount: counts?.total ?? 0,
+          limit,
+          offset,
+          nextOffset: offset + rows.length < (counts?.total ?? 0) ? offset + rows.length : null,
+          items: rows,
+        };
+      }, { isolationLevel: "repeatable read", accessMode: "read only" });
+    },
+
     list: async (companyId: string, filters?: IssueFilters) => {
       if (filters?.attention === "blocked") {
         return listBlockedInboxIssues(db, companyId, {

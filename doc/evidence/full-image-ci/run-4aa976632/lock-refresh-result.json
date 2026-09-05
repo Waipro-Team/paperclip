@@ -1,0 +1,24 @@
+{
+  "commit": "4aa9766329449d19216cdfb47124ef300570251b",
+  "timestamp": "2026-09-05T06:54:20.369065+00:00",
+  "workflow": ".github/workflows/docker.yml:90",
+  "command": "pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile",
+  "root_worktree_lock_modified": false,
+  "container_user": "1001:1001",
+  "container_home": "/tmp",
+  "container_corepack_cache": "/tmp/corepack",
+  "container_memory": "2g",
+  "container_cpus": 1,
+  "container_network": "bridge (registry metadata only)",
+  "node_image_id": "sha256:aa09691f441f07a6d1f076f25470751bff882a4ba88274f3d7f9fa5af542f0ce",
+  "exit_code": 0,
+  "changed_context_files": [
+    "pnpm-lock.yaml"
+  ],
+  "committed_lock_sha256": "c92dc538b4cc082d850da897049a36537cf5c070705ff13e4b8d8fbe68a2de31",
+  "derived_lock_sha256": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+  "derived_lock_bytes": 561323,
+  "source_manifest_sha256": "c74cd70330e1a4df9e142e0a6de3a3e73a93965613c6b5a737314d812d69bf98",
+  "status": "prepared_for_review",
+  "container_removed": true
+}

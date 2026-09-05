@@ -1,0 +1,14 @@
+ ✓ src/__tests__/secrets-service.test.ts (81 tests) 8329ms
+     ✓ rejects cross-company secret references during env normalization  336ms
+ ✓ src/__tests__/regia-intake.test.ts (36 tests) 10442ms
+     ✓ guards Regia execution against omitted, unbound and cross-company environment claims with no effects  311ms
+     ✓ blocks a valid-binding heartbeat while policy remains false with no recovery execution  376ms
+     ✓ restores blocked and suppresses recovery on a late selected-environment mismatch  364ms
+ ✓ src/__tests__/openapi-routes.test.ts (5 tests) 200ms
+ ✓ src/__tests__/regia-intake-route.test.ts (21 tests) 2115ms
+     ✓ accepts a scoped board member and passes only the validated body  2014ms
+ ✓ src/__tests__/regia-intake-preflight.test.ts (3 tests) 73ms
+ Test Files  5 passed (5)
+      Tests  146 passed (146)
+   Start at  22:37:12
+   Duration  46.62s (transform 12.05s, setup 398ms, import 24.20s, tests 21.16s, environment 0ms)

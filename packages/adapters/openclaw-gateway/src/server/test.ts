@@ -6,6 +6,16 @@ import type {
 import { asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
+import {
+  validateOpenClawExecutionIsolation,
+  type OpenClawIsolationFailure,
+} from "./isolation.js";
+
+type GatewayProbeResult =
+  | { status: "ok" }
+  | { status: "challenge_only" }
+  | { status: "failed" }
+  | { status: "isolation_failed"; failure: OpenClawIsolationFailure };
 
 function summarizeStatus(checks: AdapterEnvironmentCheck[]): AdapterEnvironmentTestResult["status"] {
   if (checks.some((check) => check.level === "error")) return "fail";
@@ -97,7 +107,8 @@ async function probeGateway(input: {
   role: string;
   scopes: string[];
   timeoutMs: number;
-}): Promise<"ok" | "challenge_only" | "failed"> {
+  agentId: string;
+}): Promise<GatewayProbeResult> {
   return await new Promise((resolve) => {
     const ws = new WebSocket(input.url, { headers: input.headers, maxPayload: 2 * 1024 * 1024 });
     const timeout = setTimeout(() => {
@@ -106,12 +117,14 @@ async function probeGateway(input: {
       } catch {
         // ignore
       }
-      resolve("failed");
+      resolve({ status: "failed" });
     }, input.timeoutMs);
 
     let completed = false;
+    let connectRequestId: string | null = null;
+    let configRequestId: string | null = null;
 
-    const finish = (status: "ok" | "challenge_only" | "failed") => {
+    const finish = (result: GatewayProbeResult) => {
       if (completed) return;
       completed = true;
       clearTimeout(timeout);
@@ -120,7 +133,7 @@ async function probeGateway(input: {
       } catch {
         // ignore
       }
-      resolve(status);
+      resolve(result);
     };
 
     ws.on("message", (raw) => {
@@ -134,15 +147,15 @@ async function probeGateway(input: {
       if (event?.type === "event" && event.event === "connect.challenge") {
         const nonce = nonEmpty(asRecord(event.payload)?.nonce);
         if (!nonce) {
-          finish("failed");
+          finish({ status: "failed" });
           return;
         }
 
-        const connectId = randomUUID();
+        connectRequestId = randomUUID();
         ws.send(
           JSON.stringify({
             type: "req",
-            id: connectId,
+            id: connectRequestId,
             method: "connect",
             params: {
               minProtocol: 4,
@@ -169,20 +182,54 @@ async function probeGateway(input: {
       }
 
       if (event?.type === "res") {
-        if (event.ok === true) {
-          finish("ok");
-        } else {
-          finish("challenge_only");
+        if (event.id === connectRequestId) {
+          if (event.ok !== true) {
+            finish({ status: "challenge_only" });
+            return;
+          }
+          configRequestId = randomUUID();
+          ws.send(
+            JSON.stringify({
+              type: "req",
+              id: configRequestId,
+              method: "config.get",
+              params: {},
+            }),
+          );
+          return;
+        }
+
+        if (event.id === configRequestId) {
+          if (event.ok !== true) {
+            finish({
+              status: "isolation_failed",
+              failure: {
+                ok: false,
+                code: "openclaw_gateway_isolation_unverified",
+                message: "OpenClaw rejected the configuration isolation probe.",
+              },
+            });
+            return;
+          }
+          const validation = validateOpenClawExecutionIsolation(event.payload, input.agentId, {
+            agentId: input.agentId,
+            sessionKey: `agent:${input.agentId}:paperclip:probe`,
+          });
+          finish(
+            validation.ok
+              ? { status: "ok" }
+              : { status: "isolation_failed", failure: validation },
+          );
         }
       }
     });
 
     ws.on("error", () => {
-      finish("failed");
+      finish({ status: "failed" });
     });
 
     ws.on("close", () => {
-      if (!completed) finish("failed");
+      if (!completed) finish({ status: "failed" });
     });
   });
 }
@@ -192,6 +239,49 @@ export async function testEnvironment(
 ): Promise<AdapterEnvironmentTestResult> {
   const checks: AdapterEnvironmentCheck[] = [];
   const config = parseObject(ctx.config);
+  if (Object.hasOwn(config, "boundaryId")) {
+    return { adapterType: ctx.adapterType, status: "fail", testedAt: new Date().toISOString(),
+      checks: [{ level: "error", code: "openclaw_boundary_execution_identity_required",
+        message: "The environment probe has no server-derived Paperclip agent identity. Verify this boundary in an authorized run.",
+        hint: "A boundary selector or a configuration snapshot cannot attest the full execution identity." }] };
+  }
+  if (ctx.executionTarget?.kind === "remote") {
+    checks.push({
+      code: "openclaw_gateway_execution_target_unsupported",
+      level: "error",
+      message:
+        "OpenClaw gateway cannot honor a remote Paperclip execution target; the probe was not run from the requested target.",
+      hint: "Use a local execution target until this adapter has target-aware WebSocket transport.",
+    });
+  }
+
+  const configuredAgentId = nonEmpty(config.agentId);
+  if (!configuredAgentId) {
+    checks.push({
+      code: "openclaw_gateway_agent_id_missing",
+      level: "error",
+      message: "OpenClaw gateway adapter requires an explicit agentId.",
+      hint: "Set adapterConfig.agentId to a dedicated, non-default OpenClaw agent.",
+    });
+  } else if (configuredAgentId.toLowerCase() === "main") {
+    checks.push({
+      code: "openclaw_gateway_main_agent_forbidden",
+      level: "error",
+      message: "The OpenClaw main/default agent cannot be used by the Paperclip gateway adapter.",
+      hint: "Create and configure a dedicated tenant agent with sandbox.mode=all.",
+    });
+  }
+
+  const templateAgentId = nonEmpty(parseObject(config.payloadTemplate).agentId);
+  if (configuredAgentId && templateAgentId && templateAgentId !== configuredAgentId) {
+    checks.push({
+      code: "openclaw_gateway_agent_id_mismatch",
+      level: "error",
+      message: "payloadTemplate.agentId must match the configured OpenClaw agentId.",
+      hint: "Remove payloadTemplate.agentId or make it identical to adapterConfig.agentId.",
+    });
+  }
+
   const urlValue = asString(config.url, "").trim();
 
   if (!urlValue) {
@@ -267,7 +357,12 @@ export async function testEnvironment(
     });
   }
 
-  if (url && (url.protocol === "ws:" || url.protocol === "wss:")) {
+  if (
+    url &&
+    configuredAgentId &&
+    !checks.some((check) => check.level === "error") &&
+    (url.protocol === "ws:" || url.protocol === "wss:")
+  ) {
     try {
       const probeResult = await probeGateway({
         url: url.toString(),
@@ -276,20 +371,28 @@ export async function testEnvironment(
         role,
         scopes: scopes.length > 0 ? scopes : ["operator.admin"],
         timeoutMs: 3_000,
+        agentId: configuredAgentId,
       });
 
-      if (probeResult === "ok") {
+      if (probeResult.status === "ok") {
         checks.push({
           code: "openclaw_gateway_probe_ok",
           level: "info",
-          message: "Gateway connect probe succeeded.",
+          message: `Gateway connect and isolation probe succeeded for agent ${configuredAgentId}.`,
         });
-      } else if (probeResult === "challenge_only") {
+      } else if (probeResult.status === "challenge_only") {
         checks.push({
           code: "openclaw_gateway_probe_challenge_only",
           level: "warn",
           message: "Gateway challenge was received, but connect probe was rejected.",
           hint: "Check gateway credentials, scopes, role, and device-auth requirements.",
+        });
+      } else if (probeResult.status === "isolation_failed") {
+        checks.push({
+          code: probeResult.failure.code,
+          level: "error",
+          message: probeResult.failure.message,
+          hint: "A dedicated sandbox configuration is necessary but does not prove the execution boundary. Integrate a trusted tenant execution boundary before activation.",
         });
       } else {
         checks.push({

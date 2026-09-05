@@ -1,0 +1,28 @@
+failed to load config from /root/work/paperclip-portal360-reconcile-20260902/ui/vitest.config.ts
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Startup Error [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯⎯[39m
+AggregateError: Failed to initialize projects. There were errors during projects setup. See below for more details.
+    at resolveProjects (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:11165:27)
+    at Vitest._setServer (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:13150:20)
+    at BasicMinimalPluginContext.handler (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14191:5)
+    at _createServer (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:26631:84)
+    at createViteServer (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:8835:17)
+    at createVitest (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14221:18)
+    at prepareVitest (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14588:14)
+    at startVitest (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14531:14)
+    at start (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cac.DdICfEr1.js:2340:15)
+    at CAC.run (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vitest@4.1.10_@opentelemetry+api@1.9.1_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_jsdom@30_a4qyivs5zuluiltreqgo56xfg4/node_modules/vitest/dist/chunks/cac.DdICfEr1.js:2318:2) {
+  [errors]: [
+    ReferenceError: __dirname is not defined
+        at eval (/root/work/paperclip-portal360-reconcile-20260902/ui/vitest.config.ts:11:46)
+        at ESModulesEvaluator.runInlinedModule (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/module-runner.js:1021:3)
+        at ModuleRunner.directRequest (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/module-runner.js:1273:59)
+        at ModuleRunner.cachedRequest (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/module-runner.js:1180:73)
+        at ModuleRunner.import (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/module-runner.js:1135:10)
+        at runnerImport (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:36089:18)
+        at runnerImportConfigFile (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:37006:35)
+        at loadConfigFromFile (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:36975:42)
+        at resolveConfig (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:36581:22)
+        at _createServer (file:///root/work/paperclip-portal360-reconcile-20260902/node_modules/.pnpm/vite@8.2.2_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12/node_modules/vite/dist/node/chunks/node.js:26388:65)
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "recorded_at_utc": "2026-09-05T20:34:11.722245+00:00",
+  "repository": "/root/work/paperclip-portal360-reconcile-20260902",
+  "branch": "codex/portal360-reconcile-20260902",
+  "base_head": "706e2d42fb2f26aa73f346e23c0365950ff6d686",
+  "original_log": {
+    "path": "/root/work/paperclip-portal360-reconcile-20260902/doc/evidence/team-runtime-20260905/test.log",
+    "bytes": 15487081,
+    "lines": 385555,
+    "sha256": "ad12c97558fc44b07e1cfca39fd5c54472e5c2ce2f3f15fcf75291bb26ebad4b",
+    "retained_on_server": true,
+    "include_in_git": false
+  },
+  "global_result": "failed_and_incomplete",
+  "invoked_suite_count": 7,
+  "totals": {
+    "files": {
+      "passed": 1042,
+      "failed": 1,
+      "skipped": 132,
+      "total": 1175
+    },
+    "tests": {
+      "passed": 10286,
+      "failed": 2,
+      "skipped": 2120,
+      "total": 12408
+    }
+  },
+  "suites": [
+    {
+      "name": "general-server server suites excluding 143 serialized suites",
+      "source_line": 12,
+      "files": {
+        "passed": 335,
+        "skipped": 115
+      },
+      "files_summary_line": 1493,
+      "tests": {
+        "passed": 3232,
+        "skipped": 2069
+      },
+      "tests_summary_line": 1494,
+      "duration_seconds": 947.11
+    },
+    {
+      "name": "general-workspaces-a project @paperclipai/ui",
+      "source_line": 1499,
+      "files": {
+        "passed": 508
+      },
+      "files_summary_line": 383822,
+      "tests": {
+        "passed": 4832
+      },
+      "tests_summary_line": 383823,
+      "duration_seconds": 169.16
+    },
+    {
+      "name": "general-workspaces-a project paperclipai",
+      "source_line": 383828,
+      "files": {
+        "passed": 57,
+        "skipped": 2
+      },
+      "files_summary_line": 384878,
+      "tests": {
+        "passed": 418,
+        "skipped": 8
+      },
+      "tests_summary_line": 384879,
+      "duration_seconds": 14.96
+    },
+    {
+      "name": "general-workspaces-b project @paperclipai/shared",
+      "source_line": 384884,
+      "files": {
+        "passed": 72
+      },
+      "files_summary_line": 384979,
+      "tests": {
+        "passed": 695
+      },
+      "tests_summary_line": 384980,
+      "duration_seconds": 10.68
+    },
+    {
+      "name": "general-workspaces-b project @paperclipai/skills-catalog",
+      "source_line": 384985,
+      "files": {
+        "passed": 5
+      },
+      "files_summary_line": 384999,
+      "tests": {
+        "passed": 20
+      },
+      "tests_summary_line": 385000,
+      "duration_seconds": 19.08
+    },
+    {
+      "name": "general-workspaces-b project @paperclipai/db",
+      "source_line": 385005,
+      "files": {
+        "passed": 18,
+        "skipped": 15
+      },
+      "files_summary_line": 385069,
+      "tests": {
+        "passed": 77,
+        "skipped": 39
+      },
+      "tests_summary_line": 385070,
+      "duration_seconds": 9.32
+    },
+    {
+      "name": "general-workspaces-b project @paperclipai/adapter-utils",
+      "source_line": 385075,
+      "files": {
+        "failed": 1,
+        "passed": 47
+      },
+      "files_summary_line": 385550,
+      "tests": {
+        "failed": 2,
+        "passed": 1012,
+        "skipped": 4
+      },
+      "tests_summary_line": 385551,
+      "duration_seconds": 46.07
+    }
+  ],
+  "terminal_failures": [
+    {
+      "source_line": 385521,
+      "test": "FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T18 latches on an EACCES lstat failure on sessionDir during verification, not only on a removed directory",
+      "message": "Error: Timed out waiting for condition.",
+      "excerpt": " FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T18 latches on an EACCES lstat failure on sessionDir during verification, not only on a removed directory\nError: Timed out waiting for condition.\n ❯ waitFor src/execution-target-stdin-race.test.ts:651:11\n    649|       await delay(20);\n    650|     }\n    651|     throw new Error(\"Timed out waiting for condition.\");\n       |           ^\n    652|   }\n    653|\n ❯ expectWrapperAndTrackedChildToDie src/execution-target-stdin-race.test.ts:1811:5\n ❯ src/execution-target-stdin-race.test.ts:1916:7\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n"
+    },
+    {
+      "source_line": 385535,
+      "test": "FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T19 latches on an EACCES lstat failure on stdinDir during verification, even though sessionDir itself still stats cleanly",
+      "message": "Error: Timed out waiting for condition.",
+      "excerpt": " FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T19 latches on an EACCES lstat failure on stdinDir during verification, even though sessionDir itself still stats cleanly\nError: Timed out waiting for condition.\n ❯ waitFor src/execution-target-stdin-race.test.ts:651:11\n    649|       await delay(20);\n    650|     }\n    651|     throw new Error(\"Timed out waiting for condition.\");\n       |           ^\n    652|   }\n    653|\n ❯ expectWrapperAndTrackedChildToDie src/execution-target-stdin-race.test.ts:1811:5\n ❯ src/execution-target-stdin-race.test.ts:1941:7\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n"
+    }
+  ],
+  "environment_diagnosis": {
+    "terminal_failures_due_to_root_permissions": 2,
+    "terminal_timeout_errors": 2,
+    "evidence": "Both EACCES fixtures time out as root because mode 000 does not deny root access; the same actual T18/T19 tests pass under claw360 UID 10001. No changes in packages/adapter-utils relative to HEAD.",
+    "non_root_rerun": {
+      "receipt": "claw360-t18-t19.json",
+      "log": "claw360-t18-t19.log",
+      "passed": 2,
+      "failed": 0,
+      "filtered_out": 32,
+      "t18_ms": 276,
+      "t19_ms": 265
+    },
+    "root_postgres_skip_messages": 110,
+    "skip_limit": "110 explicit PostgreSQL root skip messages are present; this is a message count, not a classification of all 2120 skipped tests."
+  },
+  "coverage_limits": [
+    "Stable runner stops at adapter-utils failure; later adapter projects and all 143 serialized server suites were not reached.",
+    "server/src/__tests__/openclaw-gateway-adapter.test.ts passed 9 tests in general-server (source log line 719).",
+    "OpenClaw gateway package isolation and execute-dispatch tests were not reached by this global run; use their separate targeted receipt.",
+    "server/src/__tests__/issue-import-inventory-routes.test.ts belongs to excluded serialized route suites and was not reached; use separate non-root DB receipt.",
+    "Rust tests are outside the root Vitest project list; separate ci-rust-20260905 receipt records 222 passed.",
+    "No product regression was identified in the two terminal failures. Skipped and unexecuted tests prevent claiming full global validation."
+  ],
+  "startup_attempts": [
+    "workspace-config-startup.json",
+    "package-config-startup.json"
+  ],
+  "changes": "Evidence only in this directory; no source, config, ACL, service, or runtime changes."
+}

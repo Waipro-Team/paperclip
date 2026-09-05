@@ -1,0 +1,16 @@
+{
+  "baseline_commit": "20def6f275c8239aaca67c1e4bdb5b6209be058e",
+  "files": {
+    "Dockerfile": "e220748da3c2621a97c9f8cbfccccfce86f238d97cf71490a579c54090455496",
+    "packages/db/src/embedded-postgres-native.test.ts": "d63d1915c7a7e35f7124111f2cba7bf6943a2d6c9091af8ce43c8225a8cc6837",
+    "doc/evidence/embedded-postgres-soname/CLAIM.json": "95bd55d4a475b8e68df3165814f60417092e4b635d67710ccb8d0404cd785125",
+    "doc/evidence/embedded-postgres-soname/RECEIPT.md": "00e524af11fa27ea1cf9ca4cacdb52c6427c580c505d1c4e542c4f5d48654d7c",
+    "doc/evidence/embedded-postgres-soname/fixture-build-initial.txt": "92354f452745a7aa30627e12e1274f361bc6f2f092a6f32ae676271d53349396",
+    "doc/evidence/embedded-postgres-soname/fixture-build.txt": "bf1b523cafa9436193b3059585fef71537d283bf00bdf30e7c617036a7224d9e",
+    "doc/evidence/embedded-postgres-soname/fixture-initial.json": "df3ea71ee083da6b9c965ab4a002411d5d04affc993cc0b59075fa142e9e07dd",
+    "doc/evidence/embedded-postgres-soname/fixture-result.json": "a2161ac033d6264b48a64824eb35a76dad823e8d098aaf776d8e1b994c0186fe",
+    "doc/evidence/embedded-postgres-soname/validation.json": "f72df40917817e57adb90bf0ab110e806952707918e099caf21499cce6dc7f8d",
+    "doc/evidence/embedded-postgres-soname/verify-runtime.py": "4195e0e54434d14bb3cb452562ed3b943105995db8cb7b8b822c4f5d564bed90"
+  },
+  "excludes_self": true
+}

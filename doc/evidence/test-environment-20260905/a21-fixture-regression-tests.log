@@ -1,0 +1,31 @@
+4:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > controlled gateway transport boundary > admits only the registered fixture lifetime and keeps stock snapshots denied 6ms
+5:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > controlled gateway transport boundary > preserves request and configuration rejection inside the transport fixture 1ms
+8:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > defers approval-approved wakes for a running issue so the assignee resumes after the run 161ms
+9:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > defers recovery hand-back wakes until the resolving run exits 88ms
+12:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > batches deferred comment wakes and forwards the ordered batch to the next run 1888ms
+16:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes with their comments after the active run is cancelled 1090ms
+19:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes after the active run closes the issue 1296ms
+22:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake came from another agent 837ms
+23:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake is self-authored by the closing run 944ms
+26:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > still reopens a finished issue when a deferred batch mixes self-authored and human comments 1004ms
+32:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > queues exactly one follow-up run when an issue-bound run exits without a comment 728ms
+33:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > defers mentioned-agent wakes while another agent is actively executing the same issue 1515ms
+36:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not mark a direct mentioned-agent run as the issue execution owner 521ms
+100:  ✓ src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > treats the automatic run summary as fallback-only when the run already posted a comment 714ms
+101:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > controlled gateway transport boundary > admits only the registered fixture lifetime and keeps stock snapshots denied 12ms
+102:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > controlled gateway transport boundary > preserves request and configuration rejection inside the transport fixture 3ms
+104:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > allows bounded same-issue reads and writes while quarantining low-trust output 1771ms
+182:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > preserves direct-parent reporting while default-opening visible standard-trust writes 3113ms
+324:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > relays blocked and cancelled stops once without laundering child prose 3455ms
+353:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > allows mentioned low-trust agents to comment on out-of-bound assigned issues 2462ms
+355:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > propagates denied low-trust policy conflicts on control-plane guards 1168ms
+363:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > restricts low-trust self inspection without changing standard-agent visibility 1216ms
+365:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > denies out-of-bound and control-plane attempts without leaking canaries or creating durable side effects 1542ms
+369:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > denies skill-test scoped tokens on foreign issue-adjacent reads 1006ms
+370:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > counts blocked inbox issues with the low-trust boundary applied in the database 921ms
+375:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > redacts quarantined low-trust output from higher-trust wake and continuation contexts 2317ms
+377:  ✓ src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > keeps board positive controls for issue-linked approvals and sanitized promotion 1074ms
+379:  Test Files  2 passed (2)
+380:       Tests  27 passed (27)
+381:    Start at  21:01:08
+382:    Duration  83.99s (transform 16.30s, setup 370ms, import 30.38s, tests 52.75s, environment 1ms)

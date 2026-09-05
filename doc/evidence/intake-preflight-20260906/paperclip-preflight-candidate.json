@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-09-05T22:39:33.657111+00:00",
+  "baseHead": "9ac50ed69eaf90dd3358e57aeaf4c61d63c294f8",
+  "branch": "codex/portal360-reconcile-20260902",
+  "status": "CANDIDATE_TARGETED_CHECKS_PASS",
+  "sourceSha256": {
+    "packages/shared/src/index.ts": "e27e5b5278de3b6f8b21c5bc4477ff043ad6a94b54632eb56e7c2edf1891ea36",
+    "packages/shared/src/validators/regia-intake.ts": "77995a2a83fae7ce21a75f824c4be5f2a7e53082dc8594165837d087cdfd5441",
+    "server/src/routes/regia-intake.ts": "f198e23c712e6eef625e7285fc54eb83faa02e4ae4413ff65cbab38216034edc",
+    "server/src/routes/openapi.ts": "b660cc428cd673bc6cb4143aa752be49635a7ad9fcabf92bb747900cb25cd1bf",
+    "server/src/services/regia-intake.ts": "db4d6e5009ad7834f7573a8aa52e31a159f795a47da1ac569bd6d3fa3a7204c4",
+    "server/src/services/secrets.ts": "6740f93018c93ba755be2f39fe6bd313278b545b9e107bd5652be00e420f919b",
+    "server/src/__tests__/regia-intake.test.ts": "595d0a717838894bd67a97e4e6282853d2630d4f30176202aaf7bf96f8fa4594",
+    "server/src/__tests__/regia-intake-route.test.ts": "d4d912d53460fa4450465197ef65823e74c55b181e57fd0c58e6c0361c72fa96",
+    "server/src/__tests__/openapi-routes.test.ts": "855ab9bc2c712631c87d3baf086409c8bfa43432806cf13e51427c5460f938ac"
+  },
+  "testEvidence": "paperclip-preflight-tests.json",
+  "targetedTests": {
+    "passed": 146,
+    "skipped": 0,
+    "files": 5,
+    "newCases": 40,
+    "previousFirstRun60NotAdditive": true
+  },
+  "typechecks": [
+    {
+      "command": "pnpm exec tsc --noEmit",
+      "cwd": "/root/work/paperclip-portal360-reconcile-20260902/server",
+      "exitCode": 0,
+      "observedFrom": "executor_guard SSH execution result on final nine-file source candidate"
+    },
+    {
+      "command": "pnpm --filter @paperclipai/shared typecheck",
+      "cwd": "/root/work/paperclip-portal360-reconcile-20260902",
+      "exitCode": 0,
+      "observedFrom": "executor_guard SSH execution result on final nine-file source candidate"
+    }
+  ],
+  "gitDiffCheck": {
+    "command": "git diff --check",
+    "exitCode": 0
+  },
+  "independentReview": "Requested from native_auth_boundary as distinct Codex review, pass 1; verdict not asserted in this receipt",
+  "globalChecks": "Not rerun for this worktree; parent schedules full PR CI/typecheck/build after review and new commit. Earlier 9ac50ed CI does not cover this increment.",
+  "liveChanges": false,
+  "executionAuthorized": false,
+  "credentialMaterialReadByPreflight": false,
+  "authLastUsedMayChange": true
+}

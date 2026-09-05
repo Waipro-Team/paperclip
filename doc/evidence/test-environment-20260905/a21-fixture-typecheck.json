@@ -1,0 +1,13 @@
+{
+  "command": [
+    "pnpm",
+    "--filter",
+    "@paperclipai/server",
+    "typecheck"
+  ],
+  "path_prefix": "/root/.cargo/bin",
+  "exit": 0,
+  "seconds": 30.591,
+  "log": "a21-fixture-typecheck.log",
+  "initial_attempt": "Without cargo in SSH PATH, prepare:runner-vendor failed before tsc; retry explicitly supplies installed cargo path."
+}

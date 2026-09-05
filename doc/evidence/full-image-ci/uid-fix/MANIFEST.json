@@ -1,0 +1,15 @@
+{
+  "baseline": "ee0138a6245b8edcf04f878d14e524cad68035a9",
+  "files_sha256": {
+    "doc/evidence/full-image-ci/uid-fix/CLAIM.json": "174dc7d5c919fd4f821968980fe7af211bd4f284fa27024f76e177bc69fd2aea",
+    "doc/evidence/full-image-ci/uid-fix/RECEIPT.md": "d1c5570807713f413ca1013c38656c9a161e521fe0d9dfd3187f5a0b407e8572",
+    "doc/evidence/full-image-ci/uid-fix/permission-regression.json": "5ebb9dc04f1c1db8764088757f8e1b0afea57bf0fdd691131aaaf7e2c9a5de50",
+    "doc/evidence/full-image-ci/uid-fix/prior-run.json": "e5b90c92de52ad6ed46672f330ef9cf381d4a293802c09536e77818f51cf8551",
+    "doc/evidence/full-image-ci/uid-fix/run-capacity.json": "8d962e5f7cf8fa55333ffc94fd8f723f4e57d605707f2d4cd86ee17cc8fdad3a",
+    "doc/evidence/full-image-ci/uid-fix/run-ci-cleanup.json": "4d3b5b2acce3729d75a5d24ec86664dbcdf34a5a96ec492ea912bbd7c48a9584",
+    "doc/evidence/full-image-ci/uid-fix/run-lock-refresh-result.json": "189a194610d2d2b9046078fa2af4af87b652f9e632ab5b76b515dd7aee8885a3",
+    "doc/evidence/full-image-ci/uid-fix/run-lock-refresh.txt": "d7699b2704b08667b1a36f27cb238dba1a85bb04ab2b21607cc57e9a6b970bab",
+    "doc/evidence/full-image-ci/uid-fix/verify-context-owner.py": "7aeb7fed5378ca2a40c2ac8820557678784da5880cf9872b8c6f9b76667897f0",
+    "scripts/portal360-image-preflight/prepare-lock-context.py": "a3e02d70976cfc423ce676a914c7e0d2efe2b91e85b6e4e577334d0d9889bf6c"
+  }
+}

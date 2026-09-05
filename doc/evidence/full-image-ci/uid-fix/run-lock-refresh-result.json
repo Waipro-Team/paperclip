@@ -1,0 +1,13 @@
+{
+  "commit": "ee0138a6245b8edcf04f878d14e524cad68035a9",
+  "timestamp": "2026-09-05T06:45:22.196201+00:00",
+  "workflow": ".github/workflows/docker.yml:90",
+  "command": "pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile",
+  "root_worktree_lock_modified": false,
+  "container_memory": "2g",
+  "container_cpus": 1,
+  "container_network": "bridge (registry metadata only)",
+  "node_image_id": "sha256:aa09691f441f07a6d1f076f25470751bff882a4ba88274f3d7f9fa5af542f0ce",
+  "exit_code": 1,
+  "container_removed": true
+}

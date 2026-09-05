@@ -1,0 +1,57 @@
+[
+  {
+    "name": "rust-fmt",
+    "command": [
+      "/root/.cargo/bin/cargo",
+      "fmt",
+      "--manifest-path",
+      "runner/Cargo.toml",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.804,
+    "log": "rust-fmt.log"
+  },
+  {
+    "name": "rust-check",
+    "command": [
+      "/root/.cargo/bin/cargo",
+      "check",
+      "--manifest-path",
+      "runner/Cargo.toml",
+      "--locked",
+      "--workspace"
+    ],
+    "exit": 0,
+    "seconds": 1.662,
+    "log": "rust-check.log"
+  },
+  {
+    "name": "rust-test-release",
+    "command": [
+      "/root/.cargo/bin/cargo",
+      "test",
+      "--release",
+      "--manifest-path",
+      "runner/Cargo.toml",
+      "--locked",
+      "--workspace"
+    ],
+    "exit": 0,
+    "seconds": 25.189,
+    "log": "rust-test-release.log"
+  },
+  {
+    "name": "stress",
+    "command": [
+      "python3",
+      "/root/work/paperclip-portal360-reconcile-20260902/doc/evidence/ci-rust-20260905/stress.py",
+      "runner/target/release/deps/codex_provider-694af69a77089d38"
+    ],
+    "exit": 0,
+    "seconds": 3.584,
+    "log": "stress.log"
+  }
+]

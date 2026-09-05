@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-09-05T07:25:19.106347+00:00",
+  "provenance_tests": 8,
+  "provenance_tests_result": "PASS",
+  "provenance_tests_command": "python3 -I -B scripts/portal360-image-preflight/test_export_image.py",
+  "actionlint_version": "1.7.12",
+  "actionlint_archive_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+  "actionlint_exit": 0,
+  "actionlint_temporary_removed": true,
+  "syntax": "Python, YAML, Bash PASS",
+  "workflow_permissions": {
+    "contents": "read"
+  },
+  "smoke_before_export_before_cleanup": true,
+  "export_executed": false,
+  "new_build_started": false
+}

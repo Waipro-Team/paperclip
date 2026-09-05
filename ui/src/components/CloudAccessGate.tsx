@@ -1,7 +1,14 @@
+import { useEffect, useRef } from "react";
 import { Navigate, Outlet, useLocation } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accessApi } from "@/api/access";
-import { ApiError } from "@/api/client";
+import {
+  accessRecoveryAttemptKey,
+  ApiError,
+  recoverableAccessStatus,
+  recoverAccessQueries,
+  shouldStartAutomaticAccessRecovery,
+} from "@/api/client";
 import { authApi } from "@/api/auth";
 import { healthApi } from "@/api/health";
 import { queryKeys } from "@/lib/queryKeys";
@@ -59,6 +66,25 @@ export function CloudAccessGate() {
     enabled: isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data,
     retry: false,
   });
+  const boardAccessRecovery = useMutation({
+    mutationFn: async (status: 401 | 403) => {
+      await recoverAccessQueries(queryClient, { status });
+    },
+  });
+  const automaticRecoveryKeyRef = useRef<string | null>(null);
+  const boardAccessRecoveryKey = accessRecoveryAttemptKey(boardAccessQuery.error);
+
+  useEffect(() => {
+    if (!boardAccessRecoveryKey) {
+      automaticRecoveryKeyRef.current = null;
+      return;
+    }
+    if (!shouldStartAutomaticAccessRecovery(automaticRecoveryKeyRef.current, boardAccessQuery.error)) return;
+    automaticRecoveryKeyRef.current = boardAccessRecoveryKey;
+    const status = recoverableAccessStatus(boardAccessQuery.error);
+    if (status !== null) boardAccessRecovery.mutate(status);
+  }, [boardAccessQuery.error, boardAccessRecovery.mutate, boardAccessRecoveryKey]);
+
   const claimMutation = useMutation({
     mutationFn: () => accessApi.claimBootstrapAdmin(),
     onSuccess: async () => {
@@ -78,7 +104,11 @@ export function CloudAccessGate() {
     return <PaperclipLoading />;
   }
 
-  if (healthQuery.error || boardAccessQuery.error) {
+  if (boardAccessRecoveryKey && boardAccessRecovery.isPending) {
+    return <PaperclipLoading />;
+  }
+
+  if (healthQuery.error || (boardAccessQuery.error && !boardAccessRecoveryKey)) {
     return (
       <div className="mx-auto max-w-xl py-10 text-sm text-destructive">
         {healthQuery.error instanceof Error
@@ -86,6 +116,33 @@ export function CloudAccessGate() {
           : boardAccessQuery.error instanceof Error
             ? boardAccessQuery.error.message
             : "Failed to load app state"}
+      </div>
+    );
+  }
+
+  if (boardAccessRecoveryKey) {
+    const status = recoverableAccessStatus(boardAccessQuery.error);
+    return (
+      <div className="mx-auto max-w-xl py-10">
+        <Card className="block p-6">
+          <h1 className="text-xl font-semibold">
+            {status === 401 ? "Your session needs to be refreshed" : "Organization access changed"}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Paperclip could not refresh your current access automatically. Retry safely; this does not change any
+            membership or permission.
+          </p>
+          <button
+            type="button"
+            className="mt-4 text-sm font-medium underline underline-offset-2"
+            disabled={boardAccessRecovery.isPending || status === null}
+            onClick={() => {
+              if (status !== null) boardAccessRecovery.mutate(status);
+            }}
+          >
+            {boardAccessRecovery.isPending ? "Refreshing…" : "Refresh access"}
+          </button>
+        </Card>
       </div>
     );
   }

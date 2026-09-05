@@ -241,11 +241,14 @@ import {
   claudeSetupTokenCompletionResponseSchema,
   claudeOAuthTokenStatusResponseSchema,
   startAdapterAuthSessionRequestSchema,
+  regiaIntakeRequestSchema,
+  regiaIntakePreflightRequestSchema,
 } from "@paperclipai/shared";
 import {
   COMPANY_IMPORT_TRANSFERS_API_PATH,
   companyImportTransferDeclarationSchema,
 } from "@paperclipai/shared/company-import-transfer";
+import { githubProjectReconciliationRequestSchema } from "../services/github-project-reconciliation.js";
 
 type JsonSchema = Record<string, unknown>;
 type OpenApiResponse = Record<string, unknown>;
@@ -866,6 +869,10 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "POST /api/companies/{companyId}/invites",
   "GET /api/companies/{companyId}/invites",
   "POST /api/companies/{companyId}/openclaw/invite-prompt",
+  "POST /api/companies/{companyId}/github-project-v2-reconciliation",
+  "POST /api/companies/{companyId}/regia/intake",
+  "POST /api/companies/{companyId}/regia/intake/preflight",
+  "GET /api/companies/{companyId}/session-observability",
   "GET /api/companies/{companyId}/join-requests",
   "POST /api/companies/{companyId}/join-requests/{requestId}/approve",
   "POST /api/companies/{companyId}/join-requests/{requestId}/reject",
@@ -3527,7 +3534,12 @@ registry.registerPath({
       limit: z.coerce.number().int().min(1).max(200).optional(),
     }),
   },
-  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
+  responses: {
+    200: r.ok(),
+    400: r.badRequest,
+    401: r.unauthorized,
+    403: r.forbidden,
+  },
 });
 
 registry.registerPath({
@@ -3633,6 +3645,67 @@ registry.registerPath({
     }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
+});
+
+// ─── Portal360 governance and operator observability ────────────────────────
+
+registerCurrentRoute({
+  method: "post",
+  path: "/api/companies/{companyId}/github-project-v2-reconciliation",
+  tags: ["governance"],
+  summary: "Reconcile the canonical REGIA360 GitHub Project",
+  body: githubProjectReconciliationRequestSchema,
+  responses: {
+    200: r.ok(),
+    400: r.badRequest,
+    401: r.unauthorized,
+    403: r.forbidden,
+    409: r.conflict,
+    422: r.unprocessable,
+  },
+});
+
+registerCurrentRoute({
+  method: "post",
+  path: "/api/companies/{companyId}/regia/intake",
+  tags: ["governance"],
+  summary: "Create or replay a governed REGIA360 objective intake",
+  body: regiaIntakeRequestSchema,
+  responses: {
+    200: r.ok(),
+    201: r.ok(),
+    400: r.badRequest,
+    401: r.unauthorized,
+    403: r.forbidden,
+    409: r.conflict,
+    422: r.unprocessable,
+  },
+});
+
+registerCurrentRoute({
+  method: "post",
+  path: "/api/companies/{companyId}/regia/intake/preflight",
+  tags: ["governance"],
+  summary: "Check intake admission and report the actual board principal without authorizing execution",
+  body: regiaIntakePreflightRequestSchema,
+  responses: {
+    200: {
+      ...r.ok(),
+      description: "Version 1 intake capability, normalized binding and authenticated actor. Read-only domain check; executionAuthorized is always false. No tasks, approvals, receipts or wakes are created.",
+    },
+    400: r.badRequest,
+    401: r.unauthorized,
+    403: r.forbidden,
+    422: r.unprocessable,
+  },
+});
+
+registerCurrentRoute({
+  method: "get",
+  path: "/api/companies/{companyId}/session-observability",
+  tags: ["governance"],
+  summary: "Get the company-scoped agent session observability projection",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────

@@ -1,0 +1,7 @@
+#0 building with "portal360-preflight-2492304" instance using docker-container driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.46MB 0.1s
+#1 transferring dockerfile: 143.16MB 2.3s done
+#1 DONE 2.4s
+ERROR: failed to build: failed to receive status: rpc error: code = Unavailable desc = error reading from server: connection error: COMPRESSION_ERROR

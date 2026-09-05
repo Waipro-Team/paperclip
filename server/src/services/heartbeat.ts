@@ -306,6 +306,7 @@ import { parseExecutionPolicyBootstrapEnv } from "./execution-policy-bootstrap.j
 import { environmentRuntimeService } from "./environment-runtime.js";
 import { skillVersionSelectionMap } from "./runtime-skill-selections.js";
 import { environmentRunOrchestrator } from "./environment-run-orchestrator.js";
+import { assertRegiaIntakeExecutionBinding, isRegiaExecutionGateError } from "./regia-intake.js";
 import { isUnsafeSessionWorkspaceCwd } from "./session-workspace-cwd.js";
 import {
   clearHeartbeatRunRuntimeStatus,
@@ -6925,6 +6926,36 @@ export interface HeartbeatServiceOptions {
     runId: string;
     issueId: string;
   }) => Promise<void>;
+  /** Test seam for changing the selected environment after the early Regia policy/binding preflight. */
+  afterRegiaIntakePreflight?: (input: {
+    runId: string;
+    issueId: string;
+  }) => Promise<void>;
+}
+
+export async function enforceRegiaIntakeHeartbeatExecutionBinding(
+  db: Db,
+  input: {
+    companyId: string;
+    originKind: string | null | undefined;
+    issueId: string | null | undefined;
+    selectedEnvironmentId: string | null | undefined;
+  },
+  dependencies: {
+    assertBinding?: typeof assertRegiaIntakeExecutionBinding;
+  } = {},
+): Promise<boolean> {
+  if (input.originKind !== "regia_intake") return false;
+  if (!input.issueId) {
+    throw new Error("Regia intake execution requires an issue");
+  }
+  await (dependencies.assertBinding ?? assertRegiaIntakeExecutionBinding)(db, {
+    companyId: input.companyId,
+    issueId: input.issueId,
+    ...(input.selectedEnvironmentId ? { selectedEnvironmentId: input.selectedEnvironmentId } : {}),
+    assertCompanyBinding: true,
+  });
+  return true;
 }
 
 type WorkspaceReadyCommentWriter = {
@@ -14530,6 +14561,19 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     const sessionCodec = getAdapterSessionCodec(agent.adapterType);
     const issueId = readNonEmptyString(context.issueId);
     let issueContext = issueId ? await getIssueExecutionContext(agent.companyId, issueId) : null;
+    // Regia intake tasks are fail-closed before auto-checkout mutates a blocked
+    // issue. The receipt's pinned environment is authoritative for this early
+    // pass; the final resolved environment is checked again immediately before
+    // lease acquisition below.
+    const isRegiaIntakeExecution = await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
+      companyId: agent.companyId,
+      originKind: issueContext?.originKind,
+      issueId,
+      selectedEnvironmentId: null,
+    });
+    if (isRegiaIntakeExecution && issueId && options.afterRegiaIntakePreflight) {
+      await options.afterRegiaIntakePreflight({ runId: run.id, issueId });
+    }
     const issueDependencyReadiness = issueId
       ? await issuesSvc.listDependencyReadiness(agent.companyId, [issueId]).then((rows) => rows.get(issueId) ?? null)
       : null;
@@ -15015,6 +15059,14 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       : selectedEnvironmentId
         ? await environmentsSvc.getById(selectedEnvironmentId)
         : null;
+    if (isRegiaIntakeExecution) {
+      await enforceRegiaIntakeHeartbeatExecutionBinding(db, {
+        companyId: agent.companyId,
+        originKind: issueContext?.originKind,
+        issueId,
+        selectedEnvironmentId,
+      });
+    }
     const sharedWorkspaceConcurrency = resolveSharedWorkspaceConcurrency({
       projectPolicy: projectExecutionWorkspacePolicy,
       issueSettings: issueExecutionWorkspaceSettings,
@@ -15712,6 +15764,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       agentId: agent.id,
       persistedExecutionWorkspace,
       executionWorkspaceSettings: environmentExecutionWorkspaceSettings,
+      assertCompanyBinding: isRegiaIntakeExecution,
     });
     const selectedEnvironment = acquiredEnvironment.environment;
     // Defense-in-depth: re-check the actually-acquired environment against the
@@ -17413,6 +17466,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           // recovery path routes it to a human owner instead of looping retries.
           const workspaceValidationSetupFailure = isWorkspaceValidationFailure(outerErr) ? outerErr : null;
           const configurationIncompleteSetupFailure = isConfigurationIncompleteFailure(outerErr) ? outerErr : null;
+          const regiaExecutionGateFailure = isRegiaExecutionGateError(outerErr) ? outerErr : null;
           // A remote-only base ref that never resolved is a known pre-dispatch
           // configuration gap, not an opaque setup crash. Map it to the same
           // configuration-incomplete code so the recovery path routes it to a
@@ -17421,6 +17475,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           const recordedResponsibleUserDenialCode =
             normalizeResponsibleUserDenialCode((await getRun(runId).catch(() => null))?.errorCode);
           const setupFailureErrorCode =
+            regiaExecutionGateFailure?.code ??
             workspaceValidationSetupFailure?.code ??
             configurationIncompleteSetupFailure?.code ??
             (unresolvedBaseRefSetupFailure ? CONFIGURATION_INCOMPLETE_FAILURE_CODE : null) ??
@@ -17428,6 +17483,23 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             recordedResponsibleUserDenialCode ??
             "setup_failed";
           logger.error({ err: outerErr, runId }, "heartbeat execution setup failed");
+          const regiaIssueId = regiaExecutionGateFailure
+            ? readNonEmptyString(parseObject(run.contextSnapshot).issueId)
+            : null;
+          if (regiaIssueId) {
+            await db.update(issues).set({
+              status: "blocked",
+              executionState: null,
+              executionRunId: null,
+              executionAgentNameKey: null,
+              executionLockedAt: null,
+              checkoutRunId: null,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(issues.id, regiaIssueId),
+              eq(issues.companyId, run.companyId),
+            ));
+          }
           const setupFailureAgent = await getAgent(run.agentId).catch(() => null);
           const setupFailureWrite = await setRunStatusIfRunning(runId, "failed", {
             error: message,
@@ -17487,7 +17559,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
               });
             }
             const failedAgent = setupFailureAgent ?? await getAgent(run.agentId).catch(() => null);
-            if (failedAgent) {
+            if (failedAgent && !regiaExecutionGateFailure) {
               await refreshContinuationSummaryForRun(livenessRun, failedAgent).catch(() => undefined);
               if (!isWorkspaceValidationFailedRun(livenessRun) && !isConfigurationIncompleteFailedRun(livenessRun)) {
                 await finalizeIssueCommentPolicy(livenessRun, failedAgent).catch(() => undefined);
@@ -17499,18 +17571,22 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
                 );
               });
             }
-            await releaseIssueExecutionAndPromote(livenessRun).catch((releaseError) => {
+            await releaseIssueExecutionAndPromote(livenessRun, {
+              suppressImmediateRecovery: Boolean(regiaExecutionGateFailure),
+            }).catch((releaseError) => {
               logger.error(
                 { err: releaseError, runId },
                 "failed to release issue execution after heartbeat setup failure",
               );
             });
-            await handleIssueReviewPathDisposition(livenessRun).catch((reviewPathError) => {
-              logger.error(
-                { err: reviewPathError, runId },
-                "failed to evaluate review-path disposition after heartbeat setup failure",
-              );
-            });
+            if (!regiaExecutionGateFailure) {
+              await handleIssueReviewPathDisposition(livenessRun).catch((reviewPathError) => {
+                logger.error(
+                  { err: reviewPathError, runId },
+                  "failed to evaluate review-path disposition after heartbeat setup failure",
+                );
+              });
+            }
           }
           // Ensure the agent is not left stuck in "running" if the setup-failure
           // path owned the terminal transition. If another path already finalized

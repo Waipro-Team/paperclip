@@ -1,0 +1,13 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "baseline": "4aa9766329449d19216cdfb47124ef300570251b",
+  "scope": [
+    ".github/workflows/portal360-image-preflight.yml",
+    "scripts/portal360-image-preflight/export-image.py",
+    "scripts/portal360-image-preflight/test_export_image.py",
+    "doc/evidence/full-image-ci/export-preflight/"
+  ],
+  "workflow_before_sha256": "4ba43ea085df867c20e565981604f6e910e07fddc96d39bfd0f69f762f70d7bb",
+  "state": "preparing_reviewable_diff",
+  "constraint": "No new build before prior evidence closes and export review completes"
+}

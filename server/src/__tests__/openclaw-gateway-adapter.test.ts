@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as isolation from "../../../packages/adapters/openclaw-gateway/src/server/isolation.js";
+
+// Transport/result fixtures explicitly model post-admission behavior. The real
+// gate remains covered below using a real WebSocket and an unstubbed verifier.
+function authorizeTransportFixture() {
+  vi.spyOn(isolation, "validateOpenClawExecutionIsolation").mockReturnValue({ ok: true });
+}
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { execute, testEnvironment } from "@paperclipai/adapter-openclaw-gateway/server";
@@ -77,9 +84,28 @@ async function createMockGatewayServer(options?: {
               type: "hello-ok",
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
-              features: { methods: ["connect", "agent", "agent.wait"], events: ["agent"] },
+              features: { methods: ["connect", "config.get", "agent", "agent.wait"], events: ["agent"] },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: "tenant-a" }],
+                },
+              },
             },
           }),
         );
@@ -239,11 +265,30 @@ async function createMockGatewayServerWithPairing() {
               protocol: 3,
               server: { version: "test", connId: "conn-1" },
               features: {
-                methods: ["connect", "agent", "agent.wait", "device.pair.list", "device.pair.approve"],
+                methods: ["connect", "config.get", "agent", "agent.wait", "device.pair.list", "device.pair.approve"],
                 events: ["agent"],
               },
               snapshot: { version: 1, ts: Date.now() },
               policy: { maxPayload: 1_000_000, maxBufferedBytes: 1_000_000, tickIntervalMs: 30_000 },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (frame.method === "config.get") {
+        socket.send(
+          JSON.stringify({
+            type: "res",
+            id: frame.id,
+            ok: true,
+            payload: {
+              sourceConfig: {
+                agents: {
+                  defaults: { sandbox: { mode: "all", scope: "session" } },
+                  list: [{ id: "tenant-a" }],
+                },
+              },
             },
           }),
         );
@@ -375,7 +420,7 @@ async function createMockGatewayServerWithPairing() {
 }
 
 afterEach(() => {
-  // no global mocks
+  vi.restoreAllMocks();
 });
 
 describe("openclaw gateway ui stdout parser", () => {
@@ -396,7 +441,45 @@ describe("openclaw gateway ui stdout parser", () => {
 });
 
 describe("openclaw gateway adapter execute", () => {
+  it("blocks actual WebSocket dispatch when config is valid but the execution boundary is unverified", async () => {
+    const gateway = await createMockGatewayServer();
+    const onDispatch = vi.fn();
+    try {
+      const result = await execute(buildContext({
+        url: gateway.url,
+        agentId: "tenant-a",
+        disableDeviceAuth: true,
+        waitTimeoutMs: 2000,
+      }, { onDispatch }));
+      expect(result).toMatchObject({
+        exitCode: 1, errorCode: "openclaw_gateway_execution_isolation_unverified",
+      });
+      expect(gateway.getAgentPayload()).toBeNull();
+      expect(onDispatch).not.toHaveBeenCalled();
+    } finally {
+      await gateway.close();
+    }
+  });
+
+  it("does not advertise readiness after a real configuration-only WebSocket probe", async () => {
+    const gateway = await createMockGatewayServer();
+    try {
+      const result = await testEnvironment({
+        adapterType: "openclaw_gateway",
+        config: { url: gateway.url, agentId: "tenant-a" },
+      } as Parameters<typeof testEnvironment>[0]);
+      expect(result.status).toBe("fail");
+      expect(result.checks).toContainEqual(expect.objectContaining({
+        code: "openclaw_gateway_execution_isolation_unverified", level: "error",
+      }));
+      expect(gateway.getAgentPayload()).toBeNull();
+    } finally {
+      await gateway.close();
+    }
+  });
+
   it("runs connect -> agent -> agent.wait and forwards wake payload", async () => {
+    authorizeTransportFixture();
     const gateway = await createMockGatewayServer();
     const logs: string[] = [];
 
@@ -405,6 +488,7 @@ describe("openclaw gateway adapter execute", () => {
         buildContext(
           {
             url: gateway.url,
+            agentId: "tenant-a",
             headers: {
               "x-openclaw-token": "gateway-token",
             },
@@ -489,7 +573,8 @@ describe("openclaw gateway adapter execute", () => {
       const payload = gateway.getAgentPayload();
       expect(payload).toBeTruthy();
       expect(payload?.idempotencyKey).toBe("run-123");
-      expect(payload?.sessionKey).toBe("paperclip:issue:issue-123");
+      expect(payload?.sessionKey).toBe("agent:tenant-a:paperclip:issue:issue-123");
+      expect(payload?.agentId).toBe("tenant-a");
       expect(String(payload?.message ?? "")).toContain("wake now");
       expect(String(payload?.message ?? "")).toContain("PAPERCLIP_RUN_ID=run-123");
       expect(String(payload?.message ?? "")).toContain("PAPERCLIP_TASK_ID=task-123");
@@ -512,12 +597,13 @@ describe("openclaw gateway adapter execute", () => {
   });
 
   it("fails fast when url is missing", async () => {
-    const result = await execute(buildContext({}));
+    const result = await execute(buildContext({ agentId: "tenant-a" }));
     expect(result.exitCode).toBe(1);
     expect(result.errorCode).toBe("openclaw_gateway_url_missing");
   });
 
   it("returns adapter-managed runtime services from gateway result meta", async () => {
+    authorizeTransportFixture();
     const gateway = await createMockGatewayServer({
       waitPayload: {
         runId: "run-123",
@@ -542,6 +628,7 @@ describe("openclaw gateway adapter execute", () => {
       const result = await execute(
         buildContext({
           url: gateway.url,
+          agentId: "tenant-a",
           headers: {
             "x-openclaw-token": "gateway-token",
           },
@@ -566,6 +653,7 @@ describe("openclaw gateway adapter execute", () => {
   });
 
   it("auto-approves pairing once and retries the run", async () => {
+    authorizeTransportFixture();
     const gateway = await createMockGatewayServerWithPairing();
     const logs: string[] = [];
 
@@ -574,6 +662,7 @@ describe("openclaw gateway adapter execute", () => {
         buildContext(
           {
             url: gateway.url,
+            agentId: "tenant-a",
             headers: {
               "x-openclaw-token": "gateway-token",
             },
@@ -621,8 +710,8 @@ describe("openclaw gateway ui build config", () => {
       envVars: "",
       envBindings: {},
       url: "wss://gateway.example/ws",
+      agentId: "remote-agent-123",
       payloadTemplateJson: JSON.stringify({
-        agentId: "remote-agent-123",
         metadata: { team: "platform" },
       }),
       runtimeServicesJson: JSON.stringify({
@@ -642,8 +731,8 @@ describe("openclaw gateway ui build config", () => {
     expect(config).toEqual(
       expect.objectContaining({
         url: "wss://gateway.example/ws",
+        agentId: "remote-agent-123",
         payloadTemplate: {
-          agentId: "remote-agent-123",
           metadata: { team: "platform" },
         },
         workspaceRuntime: {

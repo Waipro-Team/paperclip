@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-05T20:22:57.016837+00:00",
+  "results": [
+    {
+      "command": [
+        "pnpm",
+        "-r",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "seconds": 69.024
+    },
+    {
+      "command": [
+        "pnpm",
+        "test:run"
+      ],
+      "exitCode": 1,
+      "seconds": 1229.014
+    },
+    {
+      "command": [
+        "pnpm",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 58.746
+    }
+  ],
+  "complete": true
+}

@@ -1,0 +1,132 @@
+Scope: 34 of 35 workspace projects
+packages/google-sheets-mcp-server typecheck$ tsc --noEmit
+packages/kv-demo-mcp-server typecheck$ tsc --noEmit
+packages/paperclip-runner typecheck$ pnpm run typecheck:typescript && pnpm run typecheck:rust
+packages/shared typecheck$ tsc --noEmit
+packages/kv-demo-mcp-server typecheck: Done
+packages/tailscale-https-broker typecheck$ tsc --noEmit
+packages/paperclip-runner typecheck: > @paperclipai/paperclip-runner@0.0.0 typecheck:typescript /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+packages/paperclip-runner typecheck: > node --check scripts/protocol-contract.mjs && node --check scripts/generate-protocol-manifest.mjs && node --check scripts/generate-protocol-schema-module.mjs && node --check scripts/generate-acpx-sidecar-contract.mjs && node --check scripts/generate-replay-goldens.mjs && node --check scripts/generate-semantic-action-catalog.mjs && pnpm run check:protocol-types && tsc -p tsconfig.json --noEmit
+packages/tailscale-https-broker typecheck: Done
+packages/teams-catalog typecheck$ tsc -p tsconfig.json --noEmit
+packages/teams-catalog typecheck: Done
+packages/paperclip-runner typecheck: > @paperclipai/paperclip-runner@0.0.0 check:protocol-types /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+packages/paperclip-runner typecheck: > node scripts/generate-protocol-schema-module.mjs --check && node scripts/generate-acpx-sidecar-contract.mjs --check
+packages/paperclip-runner typecheck: Generated PRP schema module matches the JSON Schema sources.
+packages/paperclip-runner typecheck: Generated TypeScript/Rust ACPX sidecar contracts match the schema.
+packages/shared typecheck: Done
+packages/google-sheets-mcp-server typecheck: Done
+packages/paperclip-runner typecheck: > @paperclipai/paperclip-runner@0.0.0 typecheck:rust /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+packages/paperclip-runner typecheck: > cargo fmt --manifest-path runner/Cargo.toml --all -- --check && cargo check --manifest-path runner/Cargo.toml --locked --workspace
+packages/paperclip-runner typecheck: warning: function `validate_tool_result_contract` is never used
+packages/paperclip-runner typecheck:    --> crates/runner-core/src/provider_bridge.rs:953:4
+packages/paperclip-runner typecheck:     |
+packages/paperclip-runner typecheck: 953 | fn validate_tool_result_contract(
+packages/paperclip-runner typecheck:     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/paperclip-runner typecheck:     |
+packages/paperclip-runner typecheck:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+packages/paperclip-runner typecheck: warning: `paperclip-runner-core` (lib) generated 1 warning
+packages/paperclip-runner typecheck:     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+packages/paperclip-runner typecheck: Done
+packages/adapter-utils typecheck$ tsc --noEmit
+packages/db typecheck$ pnpm run check:migrations && tsc --noEmit
+packages/mcp-server typecheck$ tsc --noEmit
+packages/plugins/sdk typecheck$ pnpm --filter @paperclipai/shared build && tsc --noEmit
+packages/db typecheck: > @paperclipai/db@0.3.1 check:migrations /root/work/paperclip-portal360-reconcile-20260902/packages/db
+packages/db typecheck: > tsx src/check-migration-numbering.ts && tsx src/check-migration-safety.ts
+packages/plugins/sdk typecheck: > @paperclipai/shared@0.3.1 build /root/work/paperclip-portal360-reconcile-20260902/packages/shared
+packages/plugins/sdk typecheck: > tsc
+packages/mcp-server typecheck: Done
+packages/skills-catalog typecheck$ tsc -p tsconfig.json --noEmit
+packages/db typecheck: Migration safety check passed: 20 historical finding(s) covered by baseline (1 stale baseline id(s) ignored).
+packages/adapter-utils typecheck: Done
+packages/skills-catalog typecheck: Done
+packages/plugins/sdk typecheck: Done
+packages/db typecheck: Done
+packages/adapters/claude-local typecheck$ tsc --noEmit
+packages/adapters/codex-local typecheck$ tsc --noEmit
+packages/adapters/cursor-cloud typecheck$ tsc --noEmit
+packages/adapters/cursor-local typecheck$ tsc --noEmit
+packages/adapters/cursor-local typecheck: Done
+packages/adapters/gemini-local typecheck$ tsc --noEmit
+packages/adapters/cursor-cloud typecheck: Done
+packages/adapters/grok-local typecheck$ tsc --noEmit
+packages/adapters/codex-local typecheck: Done
+packages/adapters/hermes typecheck$ tsc --noEmit
+packages/adapters/claude-local typecheck: Done
+packages/adapters/kimi-local typecheck$ tsc --noEmit
+packages/adapters/gemini-local typecheck: Done
+packages/adapters/openclaw-gateway typecheck$ tsc --noEmit
+packages/adapters/grok-local typecheck: Done
+packages/adapters/opencode-local typecheck$ tsc --noEmit
+packages/adapters/kimi-local typecheck: Done
+packages/adapters/pi-local typecheck$ tsc --noEmit
+packages/adapters/hermes typecheck: Done
+packages/plugins/create-paperclip-plugin typecheck$ tsc --noEmit
+packages/plugins/create-paperclip-plugin typecheck: Done
+.../plugin-authoring-smoke-example typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+packages/adapters/openclaw-gateway typecheck: Done
+.../examples/plugin-file-browser-example typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+.../plugin-authoring-smoke-example typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+.../plugin-authoring-smoke-example typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+packages/adapters/opencode-local typecheck: Done
+.../examples/plugin-hello-world-example typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+packages/adapters/pi-local typecheck: Done
+.../examples/plugin-kitchen-sink-example typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+.../examples/plugin-file-browser-example typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+.../examples/plugin-file-browser-example typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+.../examples/plugin-hello-world-example typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+.../examples/plugin-hello-world-example typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+.../examples/plugin-kitchen-sink-example typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+.../examples/plugin-kitchen-sink-example typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+.../plugin-authoring-smoke-example typecheck: Done
+.../paperclip-plugin-fake-sandbox typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+.../examples/plugin-file-browser-example typecheck: Done
+packages/plugins/plugin-llm-wiki typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+.../paperclip-plugin-fake-sandbox typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+.../paperclip-plugin-fake-sandbox typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+.../examples/plugin-hello-world-example typecheck: Done
+packages/plugins/plugin-workspace-diff typecheck$ pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit && tsc --noEmit -p tsconfig.test.json
+.../examples/plugin-kitchen-sink-example typecheck: Done
+packages/plugins/plugin-llm-wiki typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+packages/plugins/plugin-llm-wiki typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+packages/plugins/plugin-workspace-diff typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+packages/plugins/plugin-workspace-diff typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+.../paperclip-plugin-fake-sandbox typecheck: Done
+packages/plugins/plugin-llm-wiki typecheck: Done
+packages/plugins/plugin-workspace-diff typecheck: Done
+packages/adapters/hermes-gateway typecheck$ tsc --noEmit
+ui typecheck$ tsc -b
+server typecheck$ pnpm run prepare:runner-vendor && pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+server typecheck: > @paperclipai/server@0.3.1 prepare:runner-vendor /root/work/paperclip-portal360-reconcile-20260902/server
+server typecheck: > pnpm --filter @paperclipai/paperclip-runner build
+server typecheck: > @paperclipai/paperclip-runner@0.0.0 build /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+server typecheck: > pnpm run check:protocol-manifest && pnpm run build:typescript && pnpm run build:binary && node scripts/generate-replay-goldens.mjs --check && node scripts/generate-semantic-action-catalog.mjs --check
+packages/adapters/hermes-gateway typecheck: Done
+server typecheck: > @paperclipai/paperclip-runner@0.0.0 check:protocol-manifest /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+server typecheck: > node scripts/generate-protocol-manifest.mjs --check
+server typecheck: The generated PRP contract manifest matches its sources.
+server typecheck: > @paperclipai/paperclip-runner@0.0.0 build:typescript /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+server typecheck: > pnpm run check:protocol-types && tsc -p tsconfig.json
+server typecheck: > @paperclipai/paperclip-runner@0.0.0 check:protocol-types /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+server typecheck: > node scripts/generate-protocol-schema-module.mjs --check && node scripts/generate-acpx-sidecar-contract.mjs --check
+server typecheck: Generated PRP schema module matches the JSON Schema sources.
+server typecheck: Generated TypeScript/Rust ACPX sidecar contracts match the schema.
+server typecheck: > @paperclipai/paperclip-runner@0.0.0 build:binary /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+server typecheck: > cargo build --release --manifest-path runner/Cargo.toml --locked -p paperclip-runner-core --bin paperclip-runnerd && node scripts/stage-runner-binary.mjs
+server typecheck: warning: function `validate_tool_result_contract` is never used
+server typecheck:    --> crates/runner-core/src/provider_bridge.rs:953:4
+server typecheck:     |
+server typecheck: 953 | fn validate_tool_result_contract(
+server typecheck:     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server typecheck:     |
+server typecheck:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+server typecheck: warning: `paperclip-runner-core` (lib) generated 1 warning
+server typecheck:     Finished `release` profile [optimized] target(s) in 0.11s
+server typecheck: Replay golden snapshots and parity summaries are current.
+server typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+server typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+ui typecheck: Done
+server typecheck: Done
+cli typecheck$ tsc --noEmit
+cli typecheck: Done

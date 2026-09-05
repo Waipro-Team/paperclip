@@ -1,4 +1,13 @@
 export { agentAdapterTypeSchema, optionalAgentAdapterTypeSchema } from "./adapter-type.js";
+export {
+  regiaIntakeRequestSchema,
+  regiaIntakePreflightRequestSchema,
+  type RegiaIntakeBinding,
+  type RegiaIntakePreflightRequest,
+  type RegiaIntakePreflightResponse,
+  type RegiaIntakeRequest,
+  type RegiaIntakeResponse,
+} from "./validators/regia-intake.js";
 export { ADAPTER_AUTH_MISSING_CHECK_CODE } from "./adapter-auth-check-code.js";
 export {
   CONNECTION_INTENT_AGENT_GUIDANCE,
@@ -42,6 +51,23 @@ export {
 } from "./validators/decision.js";
 
 export { decisionEffectTargetIssueIds } from "./types/decision.js";
+
+export type {
+  SessionAgentRef,
+  SessionBlockerRef,
+  SessionCostRef,
+  SessionEventReceipt,
+  SessionHandoffRef,
+  SessionIssueRef,
+  SessionLaneRef,
+  SessionMessageReceipt,
+  SessionObservabilityNode,
+  SessionObservabilityPhase,
+  SessionObservabilityResponse,
+  SessionObservabilityStatus,
+  SessionOwnerRef,
+  SessionReceiptState,
+} from "./types/session-observability.js";
 
 export type {
   ConnectionAvailabilityState,
@@ -358,6 +384,8 @@ export {
   BIND_MODES,
   AUTH_BASE_URL_MODES,
   AGENT_STATUSES,
+  REGIA_ROOT_CATALOG_ROLE_KEYS,
+  isRegiaRootCatalogRoleKey,
   AGENT_ADAPTER_TYPES,
   AGENT_ROLES,
   AGENT_ROLE_LABELS,
@@ -559,6 +587,7 @@ export {
   type BindMode,
   type AuthBaseUrlMode,
   type AgentStatus,
+  type RegiaRootCatalogRoleKey,
   type AgentAdapterType,
   type AgentRole,
   type AdapterAgnosticKey,

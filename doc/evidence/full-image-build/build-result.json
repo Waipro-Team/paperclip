@@ -1,0 +1,71 @@
+{
+  "commit": "460b8f151a1a0054bf84c54f0e60617b52fc8a47",
+  "started_at": "2026-09-05T05:57:40.681224+00:00",
+  "image_tag": "portal360/paperclip-candidate:460b8f151-preflight",
+  "builder": "portal360-preflight-2495509",
+  "free_bytes_before": 31385350144,
+  "build_timeout_seconds": 1800,
+  "abort_free_bytes": 19327352832,
+  "minimum_reserve_bytes": 16106127360,
+  "source": "git archive of exact commit plus captured lock from official Docker workflow preprocessing",
+  "derived_lock_sha256": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+  "committed_lock_sha256": "c92dc538b4cc082d850da897049a36537cf5c070705ff13e4b8d8fbe68a2de31",
+  "production_changes": false,
+  "context_verification": {
+    "changed_files": [
+      "pnpm-lock.yaml"
+    ],
+    "dockerfile_sha256": "e220748da3c2621a97c9f8cbfccccfce86f238d97cf71490a579c54090455496",
+    "dockerignore_sha256": "3807bb7319878f4cc1104cda45930c644ca59c46a5f7329e73e4b059226ef886",
+    "file_count": 5640,
+    "tree_sha256": "9d77cf13af564a7c40b648c0aaa5bec2ebe69625ba3ba4ed6aea45cd867961dc",
+    "transport": "explicit temporary directory; no stdin autodetection"
+  },
+  "verified_builder_limits": {
+    "Memory": 6442450944,
+    "MemorySwap": 6442450944,
+    "CpuQuota": 200000,
+    "CpuPeriod": 100000
+  },
+  "fixture_volume": "buildx_buildkit_portal360-preflight-24955090_state",
+  "build_command": [
+    "docker",
+    "buildx",
+    "build",
+    "--builder",
+    "portal360-preflight-2495509",
+    "--target",
+    "production",
+    "--platform",
+    "linux/amd64",
+    "--load",
+    "--progress",
+    "plain",
+    "--tag",
+    "portal360/paperclip-candidate:460b8f151-preflight",
+    "--build-arg",
+    "USER_UID=1001",
+    "--build-arg",
+    "USER_GID=1001",
+    "--build-arg",
+    "PAPERCLIP_BUILD_COMMIT=460b8f151a1a0054bf84c54f0e60617b52fc8a47",
+    "--build-arg",
+    "PAPERCLIP_BUILD_VERSION=candidate-460b8f151",
+    "--build-arg",
+    "CLI_TOOLS_CACHE_EPOCH=2026-W36",
+    "/tmp/paperclip-image-context-zyv4gta5"
+  ],
+  "minimum_observed_free_bytes": 19318628352,
+  "abort_reason": "disk_reserve",
+  "build_exit": 130,
+  "duration_seconds": 1234.1,
+  "status": "not_built",
+  "error": "Official image build failed or was stopped; see build.txt",
+  "cleanup": {
+    "builder_container_remaining": false,
+    "builder_volume_remaining": false,
+    "candidate_image_retained": false,
+    "context_directory_removed": true
+  },
+  "free_bytes_after": 31384313856
+}

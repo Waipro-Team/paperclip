@@ -1,0 +1,22 @@
+{
+  "syntax": "All three Python runners compiled without writing bytecode",
+  "whitespace_check": "PASS on staged scripts, Markdown, JSON and derived YAML",
+  "raw_evidence_exception": "Raw terminal .txt files retain CR/trailing spaces and captured unified .diff retains context spaces. Exact reviewed bytes preserved; excluded from whitespace lint only.",
+  "checked_paths": [
+    "doc/evidence/full-image-build/CLAIM.json",
+    "doc/evidence/full-image-build/MANIFEST.json",
+    "doc/evidence/full-image-build/RECEIPT.md",
+    "doc/evidence/full-image-build/assembly-observation.json",
+    "doc/evidence/full-image-build/build-candidate.py",
+    "doc/evidence/full-image-build/build-raw-result.json",
+    "doc/evidence/full-image-build/build-result.json",
+    "doc/evidence/full-image-build/build-stream-result.json",
+    "doc/evidence/full-image-build/cgroup-limits.json",
+    "doc/evidence/full-image-build/docker-context-lock.yaml",
+    "doc/evidence/full-image-build/lock-refresh-result.json",
+    "doc/evidence/full-image-build/prepare-lock-context.py",
+    "doc/evidence/full-image-build/smoke-image.py",
+    "doc/evidence/full-image-build/smoke-result.json",
+    "doc/evidence/full-image-build/source-ci.json"
+  ]
+}

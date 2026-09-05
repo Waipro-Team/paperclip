@@ -1,0 +1,20 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "state": "review-approved",
+  "observed_at": "2026-09-05T05:29:59.128183+00:00",
+  "baseline": "20def6f275c8239aaca67c1e4bdb5b6209be058e",
+  "scope": [
+    "Dockerfile",
+    "packages/db/src/embedded-postgres-native.test.ts"
+  ],
+  "hashes_before": {
+    "Dockerfile": "892d471c11210c37a464a88b9e9835578cc693088601a6e07d96085ce67b5de4",
+    "packages/db/src/embedded-postgres-native.test.ts": "5a7b767c6b17810c447744117818e5f9d4a6da2894a77fdd55c029f25d92c948"
+  },
+  "source_hotfix": "76aa8fe97f19c70adf97b05a65d10baa86afc764",
+  "authorization": "root: candidate-only 2 hunks plus isolated fixture/review evidence; no live changes",
+  "dirty_before": [],
+  "reviewer": "adversarial_reviewer",
+  "reviewed_at": "2026-09-05T05:36:12.233626+00:00",
+  "review_result": "PASS; 16 tests independently repeated; helper and layer hashes verified; no full build or runtime promotion claimed"
+}

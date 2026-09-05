@@ -1,0 +1,10 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "baseline": "d85760f0695fdf6ab99c171859ccc3cc3c1fc579",
+  "scope": [
+    ".github/workflows/portal360-image-preflight.yml",
+    "doc/evidence/full-image-ci/context-fix/"
+  ],
+  "workflow_before_sha256": "bf38bf0a4d03b7b6ad208e8261ed157f026261d5baa295a94636f24eb82a9aa1",
+  "state": "active"
+}

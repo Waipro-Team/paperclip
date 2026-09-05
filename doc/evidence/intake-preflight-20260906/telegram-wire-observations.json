@@ -1,0 +1,220 @@
+[
+  {
+    "options": {},
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight",
+        "status": 200
+      }
+    ],
+    "receiver": {
+      "exit": 0,
+      "output": "fabbry_preflight_ok",
+      "calls": {
+        "telegram": [
+          "getMe"
+        ],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  },
+  {
+    "options": {
+      "oldEndpoint": true
+    },
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight",
+        "status": 404
+      }
+    ],
+    "receiver": {
+      "exit": 1,
+      "output": "fabbry_receiver_startup_blocked",
+      "calls": {
+        "telegram": [],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  },
+  {
+    "options": {
+      "foreignCompany": true
+    },
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/companies/22222222-2222-4222-8222-222222222222/regia/intake/preflight",
+        "status": 403
+      }
+    ],
+    "receiver": {
+      "exit": 1,
+      "output": "fabbry_receiver_startup_blocked",
+      "calls": {
+        "telegram": [],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  },
+  {
+    "options": {
+      "foreignAgent": true
+    },
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/companies/11111111-1111-4111-8111-111111111111/regia/intake/preflight",
+        "status": 422
+      }
+    ],
+    "receiver": {
+      "exit": 1,
+      "output": "fabbry_receiver_startup_blocked",
+      "calls": {
+        "telegram": [],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  },
+  {
+    "options": {
+      "agentCredential": true
+    },
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 401
+      }
+    ],
+    "receiver": {
+      "exit": 1,
+      "output": "fabbry_receiver_startup_blocked",
+      "calls": {
+        "telegram": [],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  },
+  {
+    "options": {
+      "wrongExpectedUser": true
+    },
+    "runtimeUid": 10001,
+    "trace": [
+      {
+        "method": "GET",
+        "path": "/api/auth/get-session",
+        "status": 200
+      }
+    ],
+    "receiver": {
+      "exit": 1,
+      "output": "fabbry_receiver_startup_blocked",
+      "calls": {
+        "telegram": [],
+        "journal": 0,
+        "poll": 0
+      },
+      "stateCreated": false,
+      "productionBase": "http://127.0.0.1:3100"
+    },
+    "domainCounts": {
+      "issues": 0,
+      "goals": 0,
+      "approvals": 0,
+      "receipts": 0,
+      "wakes": 0,
+      "leases": 0,
+      "runs": 0
+    }
+  }
+]

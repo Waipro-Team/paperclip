@@ -1,0 +1,9 @@
+{
+  "at_utc": "2026-09-05T22:44:27.481875+00:00",
+  "fixture_postgres_pids_remaining": [],
+  "fixture_temp_paths_remaining": [],
+  "all_six_http_servers_closed": true,
+  "all_python_children_closed": true,
+  "tool_exec_sessions_completed": true,
+  "basis": "Each test awaited Python close and HTTP server.close; afterAll awaited database cleanup; post-run scoped process/path check."
+}

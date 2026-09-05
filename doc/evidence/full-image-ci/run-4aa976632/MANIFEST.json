@@ -1,0 +1,20 @@
+{
+  "source_commit": "4aa9766329449d19216cdfb47124ef300570251b",
+  "files_sha256": {
+    "doc/evidence/full-image-ci/run-4aa976632/CLAIM.json": "998449c3fb04662723099f955ad51ab94a1fa28c869973852b3a2fd3f6e7b215",
+    "doc/evidence/full-image-ci/run-4aa976632/RECEIPT.md": "8261f2e11f45e9cdbcd4444fad27765762186781d3d257e398933ce8adc93ac1",
+    "doc/evidence/full-image-ci/run-4aa976632/bootstrap.txt": "f008079c4337de058b4d4c39b63d3861aab97c68014497104312041a9608a1b9",
+    "doc/evidence/full-image-ci/run-4aa976632/build-result.json": "8ba5db8943f47b035c2d945a94c30a30ebd7f59fc0b3de143eddec0c540f679b",
+    "doc/evidence/full-image-ci/run-4aa976632/build.txt": "4dd4bda00f71c063f4e06e1987155ecd28e9b586ba672360f79d7382a8130dbd",
+    "doc/evidence/full-image-ci/run-4aa976632/capacity.json": "34de869af8531ceefb462027f6473bc2551984c4ba29ec9ed376784e3a11756d",
+    "doc/evidence/full-image-ci/run-4aa976632/ci-cleanup.json": "a2b41b883f76897d52e57b19bd9102c5fa4de1f6eb6e5e870f3a7d7a27ddaa08",
+    "doc/evidence/full-image-ci/run-4aa976632/docker-context-lock.diff": "c5b391ebda3e40e54beb0d9fe5c13f8fda06ad3ca8a32bf7cdf0d235078ee2de",
+    "doc/evidence/full-image-ci/run-4aa976632/docker-context-lock.yaml": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+    "doc/evidence/full-image-ci/run-4aa976632/image-ci.json": "83895b8f575b47feda44e5c203201f87833b8022abdacb3fbce27a342b7b0346",
+    "doc/evidence/full-image-ci/run-4aa976632/lock-refresh-result.json": "54c2b350002f93c86e4f5588bfa9aee426c3810c1febad5cbaa2899d2c755e25",
+    "doc/evidence/full-image-ci/run-4aa976632/lock-refresh.txt": "f493049613a533f0742c5e0ff33461d6565409a27c0079cf7233ac3eac67aab6",
+    "doc/evidence/full-image-ci/run-4aa976632/smoke-result.json": "cd261c01ac64918de020fb3a35b960cb15309a29c3cca392c3d0e2458f51ce55",
+    "doc/evidence/full-image-ci/run-4aa976632/source-ci.json": "5046b7b9433ec438a3919928e7f599b20f959af49a24598d428531b603a841cb",
+    "doc/evidence/full-image-ci/run-4aa976632/verification.json": "e1d41476567d523af01b61c89835db57de888d899d9d39a977adb262567ae0a2"
+  }
+}

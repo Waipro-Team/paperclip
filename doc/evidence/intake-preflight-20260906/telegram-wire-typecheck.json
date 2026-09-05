@@ -1,0 +1,18 @@
+{
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "pnpm",
+    "exec",
+    "tsc",
+    "--noEmit",
+    "-p",
+    "tsconfig.json"
+  ],
+  "exit": 0,
+  "seconds": 13.874,
+  "test_sha256": "47d847ae23b71ccfc089ae9ba7c4a2b29c78b2cc5b31012af5e8fcab9dd18735",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,12 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "baseline": "8233a4a0cf165375a6236a7ee074b649fc3fb791",
+  "scope": [
+    ".github/workflows/portal360-image-preflight.yml",
+    "scripts/portal360-image-preflight/",
+    "doc/evidence/full-image-ci/"
+  ],
+  "state": "active",
+  "authorized_by": "root: disposable GitHub hosted image validation after physical server disk gate",
+  "timestamp": "2026-09-05T06:30:18.737004+00:00"
+}

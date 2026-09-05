@@ -6023,8 +6023,8 @@ export function issueRoutes(
       res.status(400).json({ error: "attention must be 'blocked' when provided" });
       return;
     }
-    if (view !== undefined && view !== "compact") {
-      res.status(400).json({ error: "view must be 'compact' when provided" });
+    if (view !== undefined && view !== "compact" && view !== "import") {
+      res.status(400).json({ error: "view must be 'compact' or 'import' when provided" });
       return;
     }
     if (rawLimit !== undefined && (parsedLimit === null || !Number.isInteger(parsedLimit) || parsedLimit <= 0)) {
@@ -6073,6 +6073,22 @@ export function issueRoutes(
       return;
     }
     const offset = parsedOffset ?? 0;
+
+    if (view === "import") {
+      assertBoard(req);
+      // Company membership alone can expose only a filtered issue list. This
+      // mode must never label a partial/assignee-scoped list as complete.
+      if (!(await actorCanReadCompanyScope(req, companyId))) {
+        throw forbidden("Company-scope board read access is required for import inventory");
+      }
+      if (Object.keys(req.query).some((key) => !["view", "limit", "offset"].includes(key))) {
+        res.status(400).json({ error: "Import inventory does not accept issue filters" });
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await svc.listImportInventory(companyId, { limit, offset }));
+      return;
+    }
 
     const listFilters: IssueFilters = {
       attention: attention === "blocked" ? "blocked" : undefined,

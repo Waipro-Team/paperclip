@@ -1,0 +1,35 @@
+1: Scope: 34 of 35 workspace projects
+2: packages/google-sheets-mcp-server typecheck$ tsc --noEmit
+3: packages/kv-demo-mcp-server typecheck$ tsc --noEmit
+4: packages/paperclip-runner typecheck$ pnpm run typecheck:typescript && pnpm run typecheck:rust
+5: packages/shared typecheck$ tsc --noEmit
+6: packages/paperclip-runner typecheck: > @paperclipai/paperclip-runner@0.0.0 typecheck:typescript /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+7: packages/paperclip-runner typecheck: > node --check scripts/protocol-contract.mjs && node --check scripts/generate-protocol-manifest.mjs && node --check scripts/generate-protocol-schema-module.mjs && node --check scripts/generate-acpx-sidecar-contract.mjs && node --check scripts/generate-replay-goldens.mjs && node --check scripts/generate-semantic-action-catalog.mjs && pnpm run check:protocol-types && tsc -p tsconfig.json --noEmit
+8: packages/kv-demo-mcp-server typecheck: Done
+21: packages/paperclip-runner typecheck: warning: function `validate_tool_result_contract` is never used
+27: packages/paperclip-runner typecheck:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+28: packages/paperclip-runner typecheck: warning: `paperclip-runner-core` (lib) generated 1 warning
+109: server typecheck: > @paperclipai/paperclip-runner@0.0.0 build:typescript /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+110: server typecheck: > pnpm run check:protocol-types && tsc -p tsconfig.json
+111: server typecheck: > @paperclipai/paperclip-runner@0.0.0 check:protocol-types /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+112: server typecheck: > node scripts/generate-protocol-schema-module.mjs --check && node scripts/generate-acpx-sidecar-contract.mjs --check
+113: server typecheck: Generated PRP schema module matches the JSON Schema sources.
+114: server typecheck: Generated TypeScript/Rust ACPX sidecar contracts match the schema.
+115: server typecheck: > @paperclipai/paperclip-runner@0.0.0 build:binary /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+116: server typecheck: > cargo build --release --manifest-path runner/Cargo.toml --locked -p paperclip-runner-core --bin paperclip-runnerd && node scripts/stage-runner-binary.mjs
+117: server typecheck: warning: function `validate_tool_result_contract` is never used
+118: server typecheck:    --> crates/runner-core/src/provider_bridge.rs:953:4
+119: server typecheck:     |
+120: server typecheck: 953 | fn validate_tool_result_contract(
+121: server typecheck:     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+122: server typecheck:     |
+123: server typecheck:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+124: server typecheck: warning: `paperclip-runner-core` (lib) generated 1 warning
+125: server typecheck:     Finished `release` profile [optimized] target(s) in 0.20s
+126: server typecheck: Replay golden snapshots and parity summaries are current.
+127: server typecheck: > @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+128: server typecheck: > node ../../../scripts/ensure-plugin-build-deps.mjs
+129: ui typecheck: Done
+130: server typecheck: Done
+131: cli typecheck$ tsc --noEmit
+132: cli typecheck: Done

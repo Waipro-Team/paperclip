@@ -1,0 +1,4 @@
+-- paperclip:migration-safety-ignore large-create-index-not-concurrently: the migration runner applies each file transactionally, so CONCURRENTLY is unavailable; promotion must schedule this bounded index-only DDL behind the migration maintenance gate.
+CREATE INDEX "issue_comments_company_created_at_idx" ON "issue_comments" USING btree ("company_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+-- paperclip:migration-safety-ignore large-create-index-not-concurrently: the migration runner applies each file transactionally, so CONCURRENTLY is unavailable; promotion must schedule this bounded index-only DDL behind the migration maintenance gate.
+CREATE INDEX "issue_thread_interactions_company_created_at_idx" ON "issue_thread_interactions" USING btree ("company_id","created_at" DESC NULLS LAST);

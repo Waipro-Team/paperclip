@@ -1,0 +1,24 @@
+{
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "--config",
+    "vitest.config.ts",
+    "--cache=false",
+    "--configLoader",
+    "runner",
+    "src/__tests__/telegram-intake-wire.test.ts"
+  ],
+  "receiver_root": "/root/work/portal360-ferrari-universal-control-20260904",
+  "exit": 0,
+  "seconds": 17.616,
+  "test_sha256": "47d847ae23b71ccfc089ae9ba7c4a2b29c78b2cc5b31012af5e8fcab9dd18735",
+  "receiver_sha256": "305a6f653e0660a37659436823142d4aec67f2284deea07762f1fb1a2c280c46",
+  "log_sha256": "b8070c122b0e2f1d27d85bc0c0079d0ebb68197d4f221eb212be9cb8d99cfbad"
+}

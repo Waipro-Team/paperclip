@@ -1,0 +1,50 @@
+{
+  "transformation": "Only trailing spaces/tabs and final blank lines removed from committed text logs for git diff --check. Test output content and source hashes unchanged. The large original global test.log was not modified.",
+  "logs": [
+    {
+      "path": "doc/evidence/ci-rust-20260905/baseline-failure.log",
+      "originalSha256": "93b0e1566615e3621ef75690fb8516cce12ae8d9455e7c2242030325477772f7",
+      "normalizedSha256": "17bd02c10e7892c8023b4191b48db80f170c618ce9dd829eff137541af462b5f"
+    },
+    {
+      "path": "doc/evidence/ci-rust-20260905/drain-only-failure.log",
+      "originalSha256": "a2adf84bf2285f6a0e5aed0195cf266bc7dd1d641f2abecc72cc5ef981243f11",
+      "normalizedSha256": "ca96181447f2b2bd20c3a47d81a1a420456a6cb910fa19328ba84c3382ecb6e9"
+    },
+    {
+      "path": "doc/evidence/ci-rust-20260905/rust-test-release.log",
+      "originalSha256": "7d54c781005a6e34d458a4dda5e5682883a29d17fdb05869c0a624266c536da1",
+      "normalizedSha256": "688ecdb035e8a29ac576a453346f3f673eac13c5c7557be2051de773e154d6a4"
+    },
+    {
+      "path": "doc/evidence/ci-rust-20260905/wait-only-failure.log",
+      "originalSha256": "144236c732b2692646fd3afe5353fe2de1333cbc18c8a89b377908fbca08abc6",
+      "normalizedSha256": "dbf4a7f867896d20c88edbc96a779d7beacc36c9e72d65da204837fed5d1281f"
+    },
+    {
+      "path": "doc/evidence/team-runtime-20260905/build.log",
+      "originalSha256": "72230273ec1e37b07546602700a5a64c5d080c07b521fdfd2cf6ef9e53a8b6b2",
+      "normalizedSha256": "a19b6ecbbcf895963f283475152bd2fa109a80732e0d9e78818ffb789069e1ba"
+    },
+    {
+      "path": "doc/evidence/test-environment-20260905/claw360-t18-t19.log",
+      "originalSha256": "b1529f9d39ee6b80f594212ceffe2d48ce418e806c689606373a9688889a267b",
+      "normalizedSha256": "a22f45f0e47680b7eb5e70fb6bff1e84707db35657824a7adb61fa0c0c674c8a"
+    },
+    {
+      "path": "doc/evidence/test-environment-20260905/global-suites-and-errors.log",
+      "originalSha256": "948b7afd871b51dc42c530e91a5979913a519ead619507fed12c73a3f6309f66",
+      "normalizedSha256": "20c0a2ae495e2eeb7292d34ff6325a220dee77faa904127d05caf99f39e07a66"
+    },
+    {
+      "path": "doc/evidence/test-environment-20260905/package-config-startup.log",
+      "originalSha256": "7ca8a3f4ee45fdf9ebea5c33cf60963bab843275e16b98bae0d2b5272829a91d",
+      "normalizedSha256": "b06fc06611bcc8099a014331d7f8cd208a2b79521c37f03ced3ac14352be3f23"
+    },
+    {
+      "path": "doc/evidence/test-environment-20260905/workspace-config-startup.log",
+      "originalSha256": "84a94628c6434ecd0509d41f76460009884c234254f47f90c9f5b7eff6772e3b",
+      "normalizedSha256": "9d5b63487c76f96cbf1ba84053a5b60955a876705c6cfc75be0a8d357cbde420"
+    }
+  ]
+}

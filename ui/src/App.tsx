@@ -23,6 +23,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { DashboardLive } from "./pages/DashboardLive";
 import { Timeline } from "./pages/Timeline";
 import { Companies } from "./pages/Companies";
+import { TeamCatalog } from "./pages/TeamCatalog";
 import { AGENT_FILTER_TABS, Agents } from "./pages/Agents";
 import { AgentDetail } from "./pages/AgentDetail";
 import { Projects } from "./pages/Projects";
@@ -216,7 +217,8 @@ function boardRoutes() {
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />
       <Route path="org" element={<OrgChart />} />
-      <Route path="agents" element={<Navigate to="/agents/all" replace />} />
+      <Route path="teams-catalog/*" element={<TeamCatalog />} />
+      <Route path="agents" element={<Navigate to="/agents/active" replace />} />
       {AGENT_FILTER_TABS.map((tab) => (
         <Route key={tab} path={`agents/${tab}`} element={<Agents />} />
       ))}
@@ -692,6 +694,7 @@ export function App() {
           <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
+          <Route path="teams-catalog/*" element={<UnprefixedBoardRedirect />} />
           <Route path="agents" element={<UnprefixedBoardRedirect />} />
           {AGENT_FILTER_TABS.map((tab) => (
             <Route key={tab} path={`agents/${tab}`} element={<UnprefixedBoardRedirect />} />

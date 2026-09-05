@@ -22,6 +22,12 @@ import { MetricCard } from "../components/MetricCard";
 import { EmptyState } from "../components/EmptyState";
 import { StatusIcon } from "../components/StatusIcon";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
+import {
+  accessRecoveryAttemptKey,
+  recoverableAccessStatus,
+  recoverAccessQueries,
+  shouldStartAutomaticAccessRecovery,
+} from "../api/client";
 
 import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
@@ -36,6 +42,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InlineBanner } from "../components/InlineBanner";
 import type { Agent, Issue } from "@paperclipai/shared";
+import { RegiaObjectiveCard } from "../components/RegiaObjectiveCard";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { SmokeLabDashboardCard } from "../components/SmokeLabDashboardCard";
 
@@ -166,6 +173,31 @@ export function Dashboard() {
     queryFn: () => dashboardApi.summary(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });
+  const dashboardAccessRecovery = useMutation({
+    mutationFn: async (status: 401 | 403) => {
+      await recoverAccessQueries(queryClient, { status, companyId: selectedCompanyId });
+    },
+  });
+  const automaticAccessRecoveryKeyRef = useRef<string | null>(null);
+  const dashboardAccessRecoveryKey = accessRecoveryAttemptKey(error, selectedCompanyId);
+
+  useEffect(() => {
+    if (!dashboardAccessRecoveryKey) {
+      automaticAccessRecoveryKeyRef.current = null;
+      return;
+    }
+    if (
+      !shouldStartAutomaticAccessRecovery(
+        automaticAccessRecoveryKeyRef.current,
+        error,
+        selectedCompanyId,
+      )
+    ) return;
+    automaticAccessRecoveryKeyRef.current = dashboardAccessRecoveryKey;
+    const status = recoverableAccessStatus(error);
+    if (status !== null) dashboardAccessRecovery.mutate(status);
+  }, [dashboardAccessRecovery.mutate, dashboardAccessRecoveryKey, error]);
+
   usePublishSharedQueryData(sharedDashboard, data, dashboardUpdatedAt);
 
   const activityQueryKey = [...queryKeys.activity(selectedCompanyId!), { limit: DASHBOARD_ACTIVITY_LIMIT }] as const;
@@ -315,7 +347,36 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
+      {dashboardAccessRecoveryKey ? (
+        <InlineBanner
+          tone="warning"
+          icon={ShieldCheck}
+          title={
+            recoverableAccessStatus(error) === 401
+              ? "Your session needs to be refreshed"
+              : "Organization access changed"
+          }
+          actions={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const status = recoverableAccessStatus(error);
+                if (status !== null) dashboardAccessRecovery.mutate(status);
+              }}
+              disabled={dashboardAccessRecovery.isPending}
+              data-testid="dashboard-refresh-access"
+            >
+              {dashboardAccessRecovery.isPending ? "Refreshing…" : "Refresh access"}
+            </Button>
+          }
+        >
+          Paperclip is re-reading your session, organization membership and company data. This never changes your
+          permissions.
+        </InlineBanner>
+      ) : error ? (
+        <p className="text-sm text-destructive">{error.message}</p>
+      ) : null}
 
       {pausedBanner?.kind === "imported" ? (
         <InlineBanner
@@ -366,6 +427,8 @@ export function Dashboard() {
           </button>
         </div>
       )}
+
+      <RegiaObjectiveCard companyId={selectedCompanyId!} projects={projects} agents={agents} />
 
       <ActiveAgentsPanel companyId={selectedCompanyId!} />
 
