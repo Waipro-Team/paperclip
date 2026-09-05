@@ -1,0 +1,7 @@
+{
+  "fixture_builder": "buildx_buildkit_portal360-preflight-24955090",
+  "observed_at": "2026-09-05T06:12:15.503746+00:00",
+  "cpu_max": "200000 100000",
+  "memory_max": "6442450944",
+  "cpu_stat": "usage_usec 1368803476\nuser_usec 947990995\nsystem_usec 420812480\ncore_sched.force_idle_usec 0\nnr_periods 8632\nnr_throttled 5618\nthrottled_usec 2280001038\nnr_bursts 0\nburst_usec 0"
+}

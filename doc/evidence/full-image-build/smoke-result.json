@@ -1,0 +1,8 @@
+{
+  "status": "not_run",
+  "reason": "No completed candidate image: full build stopped at disk reserve during final COPY",
+  "source_commit": "460b8f151a1a0054bf84c54f0e60617b52fc8a47",
+  "derived_lock_sha256": "cb5329794adbf94f80f7d06d9593acd940dd7085bb053e78962780154aa97bcf",
+  "fixture_started": false,
+  "execution_tested": false
+}

@@ -1,0 +1,12 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "state": "ready_for_review",
+  "baseline": "460b8f151a1a0054bf84c54f0e60617b52fc8a47",
+  "scope": [
+    "doc/evidence/full-image-build/"
+  ],
+  "authorized_by": "root isolated bounded image build and official lock preprocessing",
+  "reviewed_lock": "adversarial_reviewer PASS; exact derived lock hash in lock-refresh-result.json",
+  "status": "Source stages passed; final image COPY stopped by disk reserve. Cleanup complete; smoke not run.",
+  "updated_at": "2026-09-05T06:22:31.925826+00:00"
+}
