@@ -1,0 +1,145 @@
+{
+  "status": "candidate_verified_independent_codex_review_pass",
+  "recorded_at_utc": "2026-09-05T20:07:19.867838+00:00",
+  "repository": "https://github.com/Waipro-Team/paperclip.git",
+  "branch": "codex/portal360-reconcile-20260902",
+  "base_head": "706e2d42fb2f26aa73f346e23c0365950ff6d686",
+  "ci_failure": "https://github.com/Waipro-Team/paperclip/actions/runs/33987564083/job/101363922426",
+  "upstream_test_origin": "cf6db7b523",
+  "scope": "Codex Rust process-exit/output ordering and the existing ambiguous-turn test",
+  "comparison": [
+    {
+      "variant": "unchanged baseline, serial",
+      "rust": "1.98.0",
+      "passed": 200,
+      "failed": 0
+    },
+    {
+      "variant": "unchanged baseline, contention",
+      "rust": "1.98.0",
+      "passed": 127,
+      "failed": 73,
+      "workers": 4,
+      "cpu": 0,
+      "seconds": 3.157
+    },
+    {
+      "variant": "bounded test wait only, contention",
+      "rust": "1.97.1",
+      "passed": 189,
+      "failed": 11,
+      "workers": 4,
+      "cpu": 0,
+      "seconds": 3.507
+    },
+    {
+      "variant": "bounded wait and stdout exit gate, before missing-id fixture correction",
+      "rust": "1.97.1",
+      "passed": 188,
+      "failed": 12,
+      "workers": 4,
+      "cpu": 0,
+      "seconds": 4.192
+    },
+    {
+      "variant": "complete candidate, contention",
+      "rust": "1.97.1",
+      "passed": 200,
+      "failed": 0,
+      "workers": 4,
+      "cpu": 0,
+      "seconds": 2.982
+    },
+    {
+      "variant": "bounded EOF candidate after first independent review",
+      "rust": "1.97.1",
+      "passed": 200,
+      "failed": 0,
+      "workers": 4,
+      "cpu": 0,
+      "seconds": 3.509
+    }
+  ],
+  "final_source_sha256": {
+    "crates/runner-core/src/process_supervisor.rs": "d7b00868213eb2fffa466ada1d79ea2a342d8c9718b686deacf0ab52f80e2065",
+    "crates/runner-core/src/codex_provider.rs": "11a8534f56051f11430620f6bbed87a2f60bd5b728fa8a01a14c5aa19985e62e",
+    "crates/runner-core/tests/process_supervisor.rs": "721666d25f34e41caf157ff5a0ba1326edc36c80ef6506c1e221f771ea37ebd4",
+    "crates/runner-core/tests/codex_provider.rs": "f4588a9d09fed675fcf2b95199e7af9a5aa8a151f2cd72cd332d2bb11385bf36"
+  },
+  "full_rust_release": {
+    "passed": 222,
+    "failed": 0,
+    "ignored": 0,
+    "suite_blocks": 17
+  },
+  "checks_cwd": "packages/paperclip-runner",
+  "checks": [
+    {
+      "name": "rust-fmt",
+      "command": [
+        "/root/.cargo/bin/cargo",
+        "fmt",
+        "--manifest-path",
+        "runner/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 0.804,
+      "log": "rust-fmt.log"
+    },
+    {
+      "name": "rust-check",
+      "command": [
+        "/root/.cargo/bin/cargo",
+        "check",
+        "--manifest-path",
+        "runner/Cargo.toml",
+        "--locked",
+        "--workspace"
+      ],
+      "exit": 0,
+      "seconds": 1.662,
+      "log": "rust-check.log"
+    },
+    {
+      "name": "rust-test-release",
+      "command": [
+        "/root/.cargo/bin/cargo",
+        "test",
+        "--release",
+        "--manifest-path",
+        "runner/Cargo.toml",
+        "--locked",
+        "--workspace"
+      ],
+      "exit": 0,
+      "seconds": 25.189,
+      "log": "rust-test-release.log"
+    },
+    {
+      "name": "stress",
+      "command": [
+        "python3",
+        "/root/work/paperclip-portal360-reconcile-20260902/doc/evidence/ci-rust-20260905/stress.py",
+        "runner/target/release/deps/codex_provider-694af69a77089d38"
+      ],
+      "exit": 0,
+      "seconds": 3.584,
+      "log": "stress.log"
+    }
+  ],
+  "not_run": [
+    "TypeScript/monorepo test, typecheck and build",
+    "remote CI rerun",
+    "production deployment"
+  ],
+  "independent_review": {
+    "reviewer": "independent Codex agent /root/import_client",
+    "pass_1": "P1: detached setsid writer made EOF unbounded; fixed with shutdown-grace deadline and deterministic OS regression",
+    "pass_2": "PASS: 65/65 targeted tests independently repeated; no remaining blocking findings; stdout deadline and queued-output preservation verified",
+    "attribution": "Actual reviewer messages from /root/import_client; distinct from Marco/Claude and CodeRabbit"
+  },
+  "runtime_activated": false
+}

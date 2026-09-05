@@ -1,0 +1,14 @@
+
+running 1 test
+test ambiguous_replacement_turn_adopts_one_later_completion_identity ...
+thread 'ambiguous_replacement_turn_adopts_one_later_completion_identity' (2863252) panicked at crates/runner-core/tests/codex_provider.rs:1444:9:
+the replacement identity should be established before replaying its output for malformed-error-with-completion
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ambiguous_replacement_turn_adopts_one_later_completion_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 59 filtered out; finished in 0.06s

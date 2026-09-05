@@ -10,9 +10,15 @@ This adapter always uses WebSocket gateway transport.
 - Connect flow follows gateway protocol:
 1. receive `connect.challenge`
 2. send `req connect` (protocol/client/auth/device payload)
-3. send `req agent`
-4. wait for completion via `req agent.wait`
-5. stream `event agent` frames into Paperclip logs/transcript parsing
+3. read `config.get` and check request and execution isolation
+4. only after execution authorization, send `req agent`
+5. wait for completion via `req agent.wait` and stream `event agent` frames
+
+**Current deployment gate:** stock OpenClaw 2026.7.1-2 cannot provide the
+execution proof needed by step 3. This candidate refuses every unverified
+`agent` dispatch, including configurations that appear to use embedded models.
+The environment test also fails with the specific isolation error. This is a
+containment fix; it does not make the team runnable.
 
 ## Auth Modes
 
@@ -41,7 +47,9 @@ The adapter supports the same session routing model as HTTP OpenClaw mode:
 - `sessionKeyStrategy=issue|fixed|run`
 - `sessionKey` is used when strategy is `fixed`
 
-Resolved session key is sent as `agent.sessionKey`.
+The resolved key must be explicitly routed to the configured agent and is
+sent as `agent.sessionKey`. A fixed key routed to another agent is rejected
+before transport. A matching key alone cannot prove stored session isolation.
 
 ## Payload Mapping
 
@@ -51,9 +59,12 @@ The agent request is built as:
   - `message` (wake text plus optional `payloadTemplate.message`/`payloadTemplate.text` prefix)
   - `idempotencyKey` (Paperclip `runId`)
   - `sessionKey` (resolved strategy)
-- optional additions:
-  - all `payloadTemplate` fields merged in
-  - `agentId` from config if set and not already in template
+- required `agentId` comes from top-level config; a conflicting template is rejected
+- template fields are merged before validation; adapter-owned `agentId`,
+  `sessionKey`, `message`, and `idempotencyKey` cannot be overridden
+- request selectors `provider`, `model`, `sessionId`, `runtime`, `agentRuntime`,
+  `agentHarnessRuntime`, `sessionEffects`, `modelRun`, `promptMode`, and `cwd`
+  are rejected by presence, even if empty or null, before opening a WebSocket
 
 ## Timeouts
 
@@ -98,8 +109,58 @@ or its native tools. There is no override flag: native harnesses need a future,
 verifiable execution boundary before this adapter can admit those routes.
 The error is `openclaw_gateway_cli_process_isolation_unverified`.
 
-This check evaluates the configuration snapshot, not an authenticated process
-attestation. It does not verify runtime-only plugin backend registrations or
-model overrides introduced through request payloads/session state. Consequently,
-passing this gate does not certify complete execution isolation; those routes
-remain a release/integration limitation requiring separate verification.
+The configuration check is only a necessary precondition. The final execution
+gate returns `openclaw_gateway_execution_isolation_unverified` when that check
+passes: runtime-only plugins and persisted session model/harness overrides
+remain unverified. Request overrides fail earlier with
+`openclaw_gateway_request_route_unverified`; cross-agent resolved keys return
+`openclaw_gateway_session_agent_mismatch`. No denial calls `onDispatch` or sends
+`agent`. Snapshot contents are never logged or included in results.
+
+There is no caller-configurable override or accepted self-reported attestation.
+Admission needs a future trusted tenant boundary covering the gateway, CLI,
+MCP processes, mounts, credentials and network, bound to the selected endpoint
+and request, or a gateway-enforced atomic execution contract. Reading session
+metadata and then dispatching would still allow a concurrent route change.
+A runtime version, an empty plugin list or `plugins.enabled=false` in a file
+snapshot cannot substitute for that contract.
+
+### Inspected runtime and repeatable evidence
+
+Read-only inspection on Agency on 2026-09-05 used the installed OpenClaw
+`2026.7.1-2` under `/usr/local/lib/node_modules/openclaw`:
+
+- `dist/config-DQFoEP4y.js:551`: `config.get` calls
+  `readConfigFileSnapshot()`; it does not bind a route to an invocation.
+- `dist/redact-snapshot-C_BFfSrJ.js:267`: `runtimeConfig` in the reply is a
+  redacted alias of the file snapshot's config; plugin metadata is omitted.
+- `dist/model-selection-cli-BxYQ8SKm.js:49` and
+  `dist/cli-backends-blVNpctb.js:172`: CLI selection includes runtime and setup
+  plugin registries, beyond `agents.defaults.cliBackends`.
+- `dist/agent-D6kiZtPt.js:909`: authorized callers may set request provider/model;
+  session IDs are independently resolved at line 1094.
+- `dist/thinking-runtime-rftFo2fO.js:55`: stored session runtime overrides
+  precede configured policy; automatic selection consults registered harnesses.
+- `dist/sessions-UcKjjh_n.js:1656`: `sessions.get` returns messages, not an
+  execution authorization. `sessions.resolve` only resolves an identity.
+
+Source SHA-256 for the two core observations:
+`config-DQFoEP4y.js` =
+`074c4e6adf00b4b4fac3129b1e5ef7f12d08034a232359946f2ea3e3b4e0739c`;
+`model-selection-cli-BxYQ8SKm.js` =
+`fa8c758eeea3a06889f175d7d7770e8dd763dbed597157ceb69f4c59233a3356`.
+
+From the repository root, repeat the synthetic checks with:
+
+```sh
+pnpm exec vitest run packages/adapters/openclaw-gateway/src/server packages/adapters/openclaw-gateway/src/ui/build-config.test.ts
+pnpm --filter @paperclipai/adapter-openclaw-gateway typecheck
+pnpm --filter @paperclipai/adapter-openclaw-gateway build
+git diff --check
+```
+
+The three transport lifecycle tests explicitly stub authorization to exercise
+post-admission ordering/retry semantics. The real-gate tests never stub it:
+they cover payload overrides, cross-agent keys, all session strategies,
+configuration-only environment probes, and absence of secret snapshot logging.
+These tests do not attest live process containment, authentication or E2E work.

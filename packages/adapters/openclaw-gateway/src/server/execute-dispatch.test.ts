@@ -74,6 +74,14 @@ vi.mock("ws", async () => {
 });
 
 import { execute } from "./execute.js";
+import { testEnvironment } from "./test.js";
+import * as isolation from "./isolation.js";
+
+// These three transport-only tests exercise the lifecycle after authorization.
+// Real-gate tests below never mock this verifier and must never dispatch.
+function authorizeTransportFixture() {
+  vi.spyOn(isolation, "validateOpenClawExecutionIsolation").mockReturnValue({ ok: true });
+}
 
 function createContext(input: {
   onDispatch?: () => void;
@@ -129,10 +137,12 @@ describe("openclaw_gateway execute dispatch boundary", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
   it("reports dispatch after transport setup and before the remote agent request", async () => {
+    authorizeTransportFixture();
     const onDispatch = vi.fn(() => {
       websocketState.events.push("dispatch");
     });
@@ -151,6 +161,7 @@ describe("openclaw_gateway execute dispatch boundary", () => {
   });
 
   it("retains the continuation gate through transient connection backoff", async () => {
+    authorizeTransportFixture();
     vi.useFakeTimers();
     websocketState.failConnectAttempts = 1;
     let resolveBackoff!: () => void;
@@ -191,6 +202,7 @@ describe("openclaw_gateway execute dispatch boundary", () => {
   });
 
   it("does not retry after the remote-work boundary has been crossed", async () => {
+    authorizeTransportFixture();
     websocketState.failAgentRequests = 1;
     const onDispatch = vi.fn();
 
@@ -297,5 +309,79 @@ describe("openclaw_gateway execute dispatch boundary", () => {
     });
     expect(websocketState.events).not.toContain("send:agent");
     expect(onDispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("openclaw gateway real isolation gate", () => {
+  beforeEach(() => {
+    websocketState.connectionAttempts = 0;
+    websocketState.failConnectAttempts = 0;
+    websocketState.failAgentRequests = 0;
+    websocketState.events = [];
+    websocketState.configSnapshot = { runtimeConfig: { agents: {
+      defaults: { model: "anthropic/claude-sonnet-5", sandbox: { mode: "all", scope: "agent" } },
+      list: [{ id: "tenant-a" }],
+    } } };
+  });
+
+  it.each([
+    { model: "claude-cli/sonnet" },
+    { model: "alias-for-plugin" },
+    { provider: "runtime-only-provider" },
+    { sessionId: "session-with-native-runtime-override" },
+  ])("rejects request routing override before transport: %j", async (payloadTemplate) => {
+    const context = createContext({ onDispatch: vi.fn() });
+    context.config.payloadTemplate = payloadTemplate;
+    const result = await execute(context);
+    expect(result).toMatchObject({ exitCode: 1, errorCode: "openclaw_gateway_request_route_unverified" });
+    expect(websocketState.connectionAttempts).toBe(0);
+    expect(context.onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fixed cross-tenant session before transport", async () => {
+    const context = createContext({ onDispatch: vi.fn() });
+    context.config.sessionKeyStrategy = "fixed";
+    context.config.sessionKey = "agent:tenant-b:paperclip";
+    const result = await execute(context);
+    expect(result).toMatchObject({ exitCode: 1, errorCode: "openclaw_gateway_session_agent_mismatch" });
+    expect(websocketState.connectionAttempts).toBe(0);
+    expect(context.onDispatch).not.toHaveBeenCalled();
+  });
+
+  it.each(["run", "issue", "fixed"])(
+    "does not admit %s sessions from config.get without runtime/session proof", async (strategy) => {
+      // Stock config.get omits runtime backend registrations and session state.
+      // Even a new run key cannot exclude plugin execution or a racing update.
+      const context = createContext({ onDispatch: vi.fn() });
+      context.config.sessionKeyStrategy = strategy;
+      const result = await execute(context);
+      expect(result).toMatchObject({ exitCode: 1, errorCode: "openclaw_gateway_execution_isolation_unverified" });
+      expect(websocketState.events).toEqual(["construct:1", "send:connect", "send:config.get"]);
+      expect(context.onDispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not expose the snapshot when denying execution", async () => {
+    websocketState.configSnapshot = { runtimeConfig: {
+      unrelated: "SYNTHETIC_SECRET_DO_NOT_LOG",
+      agents: { defaults: { sandbox: { mode: "all" } }, list: [{ id: "tenant-a" }] },
+    } };
+    const logs: string[] = [];
+    const result = await execute(createContext({ onLog: async (_stream, text) => { logs.push(text); } }));
+    expect(result).toMatchObject({ exitCode: 1, errorCode: "openclaw_gateway_execution_isolation_unverified" });
+    expect(JSON.stringify({ result, logs })).not.toContain("SYNTHETIC_SECRET_DO_NOT_LOG");
+    expect(websocketState.events).not.toContain("send:agent");
+  });
+
+  it("does not label the environment ready from a configuration-only probe", async () => {
+    const result = await testEnvironment({
+      adapterType: "openclaw_gateway",
+      config: createContext().config,
+    } as Parameters<typeof testEnvironment>[0]);
+    expect(result.status).toBe("fail");
+    expect(result.checks).toContainEqual(expect.objectContaining({
+      level: "error", code: "openclaw_gateway_execution_isolation_unverified",
+    }));
+    expect(websocketState.events).not.toContain("send:agent");
   });
 });

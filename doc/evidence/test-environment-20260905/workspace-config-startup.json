@@ -1,0 +1,16 @@
+{
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "/bin/sh",
+    "-c",
+    "cd /root/work/paperclip-portal360-reconcile-20260902 && pnpm exec vitest run --configLoader runner --no-cache --exclude \"**/dist/**\" --project @paperclipai/adapter-utils packages/adapter-utils/src/execution-target-stdin-race.test.ts -t \"T18|T19\" --reporter verbose"
+  ],
+  "run_user": "claw360",
+  "uid": 10001,
+  "exit": 1,
+  "seconds": 1.324,
+  "log": "claw360-t18-t19.log"
+}

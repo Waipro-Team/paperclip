@@ -857,7 +857,7 @@ impl CodexProvider {
             buffered.value
         } else {
             let Some(line) = self.process.receive_stdout_line(Duration::from_millis(1))? else {
-                let exit = self.process.try_wait()?;
+                let exit = self.process.try_wait_after_stdout()?;
                 return if let Some(exit) = exit {
                     let completed_turn_authoritative = self.completed_turn_authority.is_some()
                         && self.active_provider_turn_id.is_none();

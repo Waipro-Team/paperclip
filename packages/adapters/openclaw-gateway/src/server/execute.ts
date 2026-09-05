@@ -15,7 +15,7 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import crypto, { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
-import { validateOpenClawIsolationSnapshot } from "./isolation.js";
+import { validateOpenClawExecutionIsolation, validateOpenClawRequestIsolation } from "./isolation.js";
 
 type SessionKeyStrategy = "fixed" | "issue" | "run";
 
@@ -1167,6 +1167,17 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     waitTimeoutMs,
   });
 
+  const requestIsolation = validateOpenClawRequestIsolation(agentParams, configuredAgentId);
+  if (!requestIsolation.ok) {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorMessage: requestIsolation.message,
+      errorCode: requestIsolation.code,
+    };
+  }
+
   if (ctx.onMeta) {
     await ctx.onMeta({
       adapterType: "openclaw_gateway",
@@ -1342,9 +1353,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       const isolationSnapshot = await client.request<unknown>("config.get", {}, {
         timeoutMs: connectTimeoutMs,
       });
-      const isolationValidation = validateOpenClawIsolationSnapshot(
+      const isolationValidation = validateOpenClawExecutionIsolation(
         isolationSnapshot,
         configuredAgentId,
+        agentParams,
       );
       if (!isolationValidation.ok) {
         await ctx.onLog(

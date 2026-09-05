@@ -8,7 +8,10 @@ export type OpenClawIsolationFailure = {
     | "openclaw_gateway_main_agent_forbidden"
     | "openclaw_gateway_sandbox_not_enforced"
     | "openclaw_gateway_sandbox_scope_shared"
-    | "openclaw_gateway_cli_process_isolation_unverified";
+    | "openclaw_gateway_cli_process_isolation_unverified"
+    | "openclaw_gateway_request_route_unverified"
+    | "openclaw_gateway_session_agent_mismatch"
+    | "openclaw_gateway_execution_isolation_unverified";
   message: string;
 };
 
@@ -28,8 +31,9 @@ function nonEmpty(value: unknown): string | null {
 function configRoot(snapshot: unknown): JsonRecord | null {
   const outer = asRecord(snapshot);
   if (!outer) return null;
-  // Prefer the effective runtime view. Source/resolved snapshots are useful
-  // fallbacks for older gateways, but must not mask a weaker runtime policy.
+  // Prefer the gateway field named runtimeConfig over older source views.
+  // In 2026.7.1-2 this is still a redacted file snapshot, not a process or
+  // plugin-registry attestation; only the execution gate controls dispatch.
   for (const key of ["runtimeConfig", "config", "sourceConfig", "resolved"] as const) {
     const candidate = asRecord(outer[key]);
     if (candidate) return candidate;
@@ -84,7 +88,11 @@ function hasConfiguredCliRoute(defaults: JsonRecord | null, selected: JsonRecord
 }
 
 /**
- * Fail-closed validation of the redacted configuration returned by OpenClaw
+ * Configuration-only validation of the redacted snapshot returned by OpenClaw.
+ * An ok result is NOT dispatch authorization: callers must also use
+ * validateOpenClawExecutionIsolation for the actual request and execution route.
+ *
+ * Inspect the redacted configuration returned by OpenClaw
  * `config.get`. The snapshot is inspected in memory only and must never be
  * included in logs or adapter results because it may contain configuration
  * material unrelated to the selected agent.
@@ -161,9 +169,67 @@ export function validateOpenClawIsolationSnapshot(
       ok: false,
       code: "openclaw_gateway_cli_process_isolation_unverified",
       message:
-        "OpenClaw CLI backends require verified process isolation; sandbox.mode=all does not isolate native CLI tools. Use an embedded backend until that execution boundary is verifiable.",
+        "OpenClaw CLI backends require verified process isolation; sandbox.mode=all does not isolate native CLI tools. A verified execution boundary is required before dispatch.",
     };
   }
 
   return { ok: true };
+}
+
+/**
+ * Check the exact outbound params, after adapter-owned fields have been bound.
+ * Reject selectors by presence, including null/empty values; interpreting them
+ * is gateway-version dependent. Do not echo values in errors.
+ */
+export function validateOpenClawRequestIsolation(
+  params: JsonRecord,
+  configuredAgentId: string,
+): OpenClawIsolationValidation {
+  const routeSelectors = [
+    "provider", "model", "sessionId", "runtime", "agentRuntime",
+    "agentHarnessRuntime", "sessionEffects", "modelRun", "promptMode", "cwd",
+  ];
+  if (routeSelectors.some((key) => Object.hasOwn(params, key))) {
+    return {
+      ok: false,
+      code: "openclaw_gateway_request_route_unverified",
+      message: "Gateway payload execution, model, and session-id overrides cannot be verified and are not admitted.",
+    };
+  }
+  const key = nonEmpty(params.sessionKey);
+  const prefix = `agent:${configuredAgentId}:`;
+  if (params.agentId !== configuredAgentId || !key?.startsWith(prefix) || key.length === prefix.length) {
+    return {
+      ok: false,
+      code: "openclaw_gateway_session_agent_mismatch",
+      message: "The resolved session key must belong to the explicitly configured OpenClaw agent.",
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Dispatch gate. Stock OpenClaw 2026.7.1-2 exposes a redacted file snapshot,
+ * not proof bound to this invocation. Runtime CLI/harness plugins and stored
+ * session overrides can change execution after the configuration check.
+ *
+ * There is deliberately no config flag or caller-provided attestation to turn
+ * this denial into admission. A future trusted execution boundary must cover
+ * the gateway, CLI and MCP processes for this tenant and request, or the
+ * gateway must enforce an atomic execution contract before accepting work.
+ */
+export function validateOpenClawExecutionIsolation(
+  snapshot: unknown,
+  configuredAgentId: string,
+  params: JsonRecord,
+): OpenClawIsolationValidation {
+  const request = validateOpenClawRequestIsolation(params, configuredAgentId);
+  if (!request.ok) return request;
+  const configuration = validateOpenClawIsolationSnapshot(snapshot, configuredAgentId);
+  if (!configuration.ok) return configuration;
+  return {
+    ok: false,
+    code: "openclaw_gateway_execution_isolation_unverified",
+    message: "OpenClaw config.get cannot verify the effective session, runtime plugins, or process boundary for this request. Dispatch is blocked until a trusted execution boundary is integrated.",
+  };
 }

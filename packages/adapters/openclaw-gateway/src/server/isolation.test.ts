@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateOpenClawIsolationSnapshot } from "./isolation.js";
+import {
+  validateOpenClawIsolationSnapshot,
+  validateOpenClawExecutionIsolation,
+  validateOpenClawRequestIsolation,
+} from "./isolation.js";
 
 describe("validateOpenClawIsolationSnapshot", () => {
   it("accepts only the selected, sandboxed non-default agent", () => {
@@ -173,5 +177,48 @@ describe("CLI process isolation", () => {
       runtimeConfig: snapshot("claude-cli/sonnet"),
       sourceConfig: snapshot(embedded),
     }, "tenant-a")).toMatchObject(rejection);
+  });
+});
+
+describe("request and execution admission", () => {
+  const params = { agentId: "tenant-a", sessionKey: "agent:tenant-a:paperclip:issue:123" };
+  const snapshot = { runtimeConfig: { agents: {
+    defaults: { model: "anthropic/claude-sonnet-5", sandbox: { mode: "all", scope: "agent" } },
+    list: [{ id: "tenant-a" }],
+  } } };
+
+  it.each([
+    ["model", "claude-cli/sonnet"], ["model", "worker@profile"], ["model", null],
+    ["provider", "custom-runtime"], ["sessionId", "other-tenant-session"],
+    ["runtime", "codex"], ["agentRuntime", "claude-cli"],
+    ["agentHarnessRuntime", "claude-cli"], ["modelRun", false],
+    ["promptMode", "none"], ["sessionEffects", "internal"], ["cwd", "/host"],
+  ])("rejects outbound %s by presence without exposing the value", (key, value) => {
+    const result = validateOpenClawRequestIsolation({ ...params, [key]: value }, "tenant-a");
+    expect(result).toMatchObject({ ok: false, code: "openclaw_gateway_request_route_unverified" });
+    if (typeof value === "string") expect(JSON.stringify(result)).not.toContain(value);
+  });
+
+  it.each(["agent:tenant-b:paperclip", "agent:main:paperclip", "global", "paperclip", "agent:tenant-a:"])(
+    "rejects a resolved session outside the selected agent: %s", (sessionKey) => {
+      expect(validateOpenClawRequestIsolation({ ...params, sessionKey }, "tenant-a"))
+        .toMatchObject({ ok: false, code: "openclaw_gateway_session_agent_mismatch" });
+    },
+  );
+
+  it("does not confuse a valid request/configuration with execution authorization", () => {
+    expect(validateOpenClawRequestIsolation(params, "tenant-a")).toEqual({ ok: true });
+    expect(validateOpenClawIsolationSnapshot(snapshot, "tenant-a")).toEqual({ ok: true });
+    expect(validateOpenClawExecutionIsolation(snapshot, "tenant-a", params)).toMatchObject({
+      ok: false, code: "openclaw_gateway_execution_isolation_unverified",
+    });
+  });
+
+  it("does not accept source/plugin flags or a self-reported external boundary as proof", () => {
+    const claimed = { ...snapshot, executionIsolationVerified: true, externalBoundary: true,
+      runtimePlugins: [], session: { providerOverride: null, runtimeOverride: null } };
+    expect(validateOpenClawExecutionIsolation(claimed, "tenant-a", params)).toMatchObject({
+      ok: false, code: "openclaw_gateway_execution_isolation_unverified",
+    });
   });
 });

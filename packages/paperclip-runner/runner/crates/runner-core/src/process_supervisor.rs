@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
@@ -190,6 +191,8 @@ pub struct SupervisedProcess {
     child: Child,
     stdin: Option<ChildStdin>,
     output: Receiver<ProcessOutput>,
+    stdout_drained: Cell<bool>,
+    stdout_drain_deadline: Option<Instant>,
     process_group_id: u32,
     shutdown_grace: Duration,
     finished: bool,
@@ -257,6 +260,8 @@ impl SupervisedProcess {
             child,
             stdin: Some(stdin),
             output,
+            stdout_drained: Cell::new(false),
+            stdout_drain_deadline: None,
             process_group_id,
             shutdown_grace,
             finished: false,
@@ -306,13 +311,19 @@ impl SupervisedProcess {
                 Ok(ProcessOutput::StdoutError(message)) => {
                     return Err(LocalRunnerError::invalid(message));
                 }
-                Ok(ProcessOutput::StdoutClosed) => return Ok(None),
+                Ok(ProcessOutput::StdoutClosed) => {
+                    self.stdout_drained.set(true);
+                    return Ok(None);
+                }
                 Err(RecvTimeoutError::Timeout) => return Ok(None),
                 // The reader threads end when the child closes its output.
                 // Let the caller reconcile that closure with the authoritative
                 // process exit status instead of turning the channel teardown
                 // into a transport failure.
-                Err(RecvTimeoutError::Disconnected) => return Ok(None),
+                Err(RecvTimeoutError::Disconnected) => {
+                    self.stdout_drained.set(true);
+                    return Ok(None);
+                }
             }
         }
     }
@@ -328,6 +339,30 @@ impl SupervisedProcess {
             .map_err(|error| {
                 LocalRunnerError::invalid(format!("failed to inspect process: {error}"))
             })
+    }
+
+    /// Publish exit after stdout drains, or fail when shutdown grace expires.
+    pub fn try_wait_after_stdout(&mut self) -> Result<Option<ProcessExitFact>, LocalRunnerError> {
+        let Some(exit) = self.try_wait()? else {
+            return Ok(None);
+        };
+        let deadline = *self
+            .stdout_drain_deadline
+            .get_or_insert_with(|| Instant::now() + self.shutdown_grace);
+        if !self.finished {
+            // The leader has exited, so wait cannot block. Reap its remaining
+            // group members so inherited stdout handles cannot prevent EOF.
+            self.wait()?;
+        }
+        if self.stdout_drained.get() {
+            return Ok(Some(exit));
+        }
+        if Instant::now() >= deadline {
+            return Err(LocalRunnerError::invalid(
+                "process exited but stdout did not close within the shutdown grace period",
+            ));
+        }
+        Ok(None)
     }
 
     pub fn wait(&mut self) -> Result<ProcessExitFact, LocalRunnerError> {

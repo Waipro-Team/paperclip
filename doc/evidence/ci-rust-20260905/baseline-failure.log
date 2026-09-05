@@ -1,0 +1,16 @@
+
+running 1 test
+test ambiguous_replacement_turn_adopts_one_later_completion_identity ...
+thread 'ambiguous_replacement_turn_adopts_one_later_completion_identity' (2856167) panicked at crates/runner-core/tests/codex_provider.rs:1443:9:
+assertion `left == right` failed: the replacement completion, not the old result, reconciles the provider exit for accepted-before-response-with-completion
+  left: None
+ right: Some((false, true, true))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ambiguous_replacement_turn_adopts_one_later_completion_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 59 filtered out; finished in 0.03s

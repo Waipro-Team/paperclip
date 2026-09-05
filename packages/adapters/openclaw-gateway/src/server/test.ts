@@ -7,7 +7,7 @@ import { asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import {
-  validateOpenClawIsolationSnapshot,
+  validateOpenClawExecutionIsolation,
   type OpenClawIsolationFailure,
 } from "./isolation.js";
 
@@ -211,7 +211,10 @@ async function probeGateway(input: {
             });
             return;
           }
-          const validation = validateOpenClawIsolationSnapshot(event.payload, input.agentId);
+          const validation = validateOpenClawExecutionIsolation(event.payload, input.agentId, {
+            agentId: input.agentId,
+            sessionKey: `agent:${input.agentId}:paperclip:probe`,
+          });
           finish(
             validation.ok
               ? { status: "ok" }
@@ -383,7 +386,7 @@ export async function testEnvironment(
           code: probeResult.failure.code,
           level: "error",
           message: probeResult.failure.message,
-          hint: "Use a dedicated non-default agent with effective sandbox.mode=all and non-shared scope.",
+          hint: "A dedicated sandbox configuration is necessary but does not prove the execution boundary. Integrate a trusted tenant execution boundary before activation.",
         });
       } else {
         checks.push({

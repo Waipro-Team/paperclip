@@ -1,0 +1,59 @@
+12: [test:run] general-server server suites excluding 143 serialized suites
+1493:  Test Files  335 passed | 115 skipped (450)
+1494:       Tests  3232 passed | 2069 skipped (5301)
+1496:    Duration  947.11s (transform 26.49s, setup 36.18s, import 652.43s, tests 182.64s, environment 50ms)
+1499: [test:run] general-workspaces-a project @paperclipai/ui
+383822:  Test Files  508 passed (508)
+383823:       Tests  4832 passed (4832)
+383825:    Duration  169.16s (transform 69.63s, setup 6.65s, import 583.00s, tests 193.99s, environment 266.18s)
+383828: [test:run] general-workspaces-a project paperclipai
+384878:  Test Files  57 passed | 2 skipped (59)
+384879:       Tests  418 passed | 8 skipped (426)
+384881:    Duration  14.96s (transform 29.84s, setup 0ms, import 62.64s, tests 20.83s, environment 9ms)
+384884: [test:run] general-workspaces-b project @paperclipai/shared
+384979:  Test Files  72 passed (72)
+384980:       Tests  695 passed (695)
+384982:    Duration  10.68s (transform 12.04s, setup 0ms, import 22.09s, tests 8.59s, environment 9ms)
+384985: [test:run] general-workspaces-b project @paperclipai/skills-catalog
+384999:  Test Files  5 passed (5)
+385000:       Tests  20 passed (20)
+385002:    Duration  19.08s (transform 4.63s, setup 0ms, import 6.43s, tests 18.94s, environment 1ms)
+385005: [test:run] general-workspaces-b project @paperclipai/db
+385069:  Test Files  18 passed | 15 skipped (33)
+385070:       Tests  77 passed | 39 skipped (116)
+385072:    Duration  9.32s (transform 25.00s, setup 0ms, import 53.01s, tests 1.91s, environment 5ms)
+385075: [test:run] general-workspaces-b project @paperclipai/adapter-utils
+385550:  Test Files  1 failed | 47 passed (48)
+385551:       Tests  2 failed | 1012 passed | 4 skipped (1018)
+385553:    Duration  46.07s (transform 17.53s, setup 0ms, import 44.50s, tests 185.56s, environment 6ms)
+
+385521:  FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T18 latches on an EACCES lstat failure on sessionDir during verification, not only on a removed directory
+385522: Error: Timed out waiting for condition.
+385523:  ❯ waitFor src/execution-target-stdin-race.test.ts:651:11
+385524:     649|       await delay(20);
+385525:     650|     }
+385526:     651|     throw new Error("Timed out waiting for condition.");
+385527:        |           ^
+385528:     652|   }
+385529:     653|
+385530:  ❯ expectWrapperAndTrackedChildToDie src/execution-target-stdin-race.test.ts:1811:5
+385531:  ❯ src/execution-target-stdin-race.test.ts:1916:7
+385532:
+385533: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+385534:
+
+385535:  FAIL   @paperclipai/adapter-utils  src/execution-target-stdin-race.test.ts > deterministic remote process-session wrapper shutdown (PAP-5316) > T19 latches on an EACCES lstat failure on stdinDir during verification, even though sessionDir itself still stats cleanly
+385536: Error: Timed out waiting for condition.
+385537:  ❯ waitFor src/execution-target-stdin-race.test.ts:651:11
+385538:     649|       await delay(20);
+385539:     650|     }
+385540:     651|     throw new Error("Timed out waiting for condition.");
+385541:        |           ^
+385542:     652|   }
+385543:     653|
+385544:  ❯ expectWrapperAndTrackedChildToDie src/execution-target-stdin-race.test.ts:1811:5
+385545:  ❯ src/execution-target-stdin-race.test.ts:1941:7
+385546:
+385547: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+385548:
+385549:

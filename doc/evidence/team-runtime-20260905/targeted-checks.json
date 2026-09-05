@@ -1,0 +1,40 @@
+{
+  "scope": "Targeted checks actually reported by independent Codex import_client; raw logs were not persisted. Source hashes re-read at receipt creation. Distinct from Marco/Claude review.",
+  "base": "706e2d42fb2f26aa73f346e23c0365950ff6d686",
+  "inventory": {
+    "cwd": "server",
+    "command": "runuser -u claw360 -- pnpm exec vitest run --config vitest.config.ts --cache=false --configLoader runner src/__tests__/issue-import-inventory-routes.test.ts",
+    "passed": 11,
+    "skipped": 0,
+    "durationSeconds": 37.21,
+    "runnerStart": "2026-09-05 19:55:05"
+  },
+  "ordinaryGET": {
+    "cwd": "server",
+    "command": "runuser -u claw360 -- pnpm exec vitest run --config vitest.config.ts --cache=false --configLoader runner src/__tests__/issue-list-assignee-filter-routes.test.ts src/__tests__/issues-list-query-parsing.test.ts src/__tests__/issue-list-updatedsince-filter-routes.test.ts",
+    "passed": 23,
+    "skipped": 0,
+    "durationSeconds": 43.07,
+    "runnerStart": "2026-09-05 19:56:09"
+  },
+  "guard": {
+    "passed": 78,
+    "commands": [
+      "pnpm exec vitest run packages/adapters/openclaw-gateway/src/server/isolation.test.ts packages/adapters/openclaw-gateway/src/server/execute-dispatch.test.ts packages/adapters/openclaw-gateway/src/server/parse.test.ts packages/adapters/openclaw-gateway/src/ui/build-config.test.ts server/src/__tests__/openclaw-gateway-adapter.test.ts",
+      "pnpm exec vitest run packages/adapters/openclaw-gateway/src/server/execute.test.ts"
+    ],
+    "detail": "First command:68 tests on4 matched files; parse.test.ts did not match and was ignored. Second command:10 tests. PASS preventive containment only."
+  },
+  "sha256": {
+    "server/src/routes/issues.ts": "b73ec6899f8de6aa4e857a57f24cb0142eb5bfaad7491339c6d17fdb505ca5c1",
+    "server/src/services/issues.ts": "7c37232011d06f8b9b89f81c0b0e952a6cd24f2a9df7ad76d985502d12cbfafa",
+    "server/src/__tests__/issue-import-inventory-routes.test.ts": "14df5e034975b47e05998dfb27e9f267aa86c0015adcdb18c272709ec54b9bac",
+    "packages/adapters/openclaw-gateway/README.md": "ace12499d3acdbcb605ee2009dff4e3b318af9328ce5ad225aa6eb33790811e8",
+    "packages/adapters/openclaw-gateway/src/server/isolation.ts": "454cae59631c5005d9ced179ba71b2f46673fd8c9448539dea2ee6fcbd9524ab",
+    "packages/adapters/openclaw-gateway/src/server/isolation.test.ts": "dcd57e93ebae7adc4f7135739b70b8ca3c43700c5d0db02098366347c293647b",
+    "packages/adapters/openclaw-gateway/src/server/execute.ts": "c835a6ec4f365700cb0cf311081ae7720d5925797aacdfe47d00fc068c0969e7",
+    "packages/adapters/openclaw-gateway/src/server/execute-dispatch.test.ts": "86fc99b2134e69550648d2af0793118c16a1d4fb7eedcd60afacf9603f0c4a1f",
+    "packages/adapters/openclaw-gateway/src/server/test.ts": "cf064508a6caf78ecc848a3f45d3a77ce3f71f55cea460f54f0ecfc11d44f7e0",
+    "server/src/__tests__/openclaw-gateway-adapter.test.ts": "e1d79b540111a2116cec8dbe8c528a39a242dbe914cbed7a599845bb8228a4e8"
+  }
+}
