@@ -1,0 +1,36 @@
+{
+  "base_image_id": "sha256:8b1e442cd30a2c636e3cb089986cce2ec66e24e369a842897fa0406d23f5e842",
+  "candidate_helper_sha256": "c675c34ab7898b0fcb031756763892cc1b4fd7a4056b5b81e2c5a968402ffb80",
+  "candidate_docker_layer_sha256": "c08d25c7b93957c9027d3ce3b3b2c82b2ad948baa6386730d3a7f8d15ef5d62e",
+  "constraints": {
+    "uid": 1001,
+    "rootfs": "read-only",
+    "network": "none",
+    "memory": "256m",
+    "cpus": 0.5,
+    "pids_limit": 64,
+    "volumes": [],
+    "server_started": false
+  },
+  "before": {
+    "uid": 1001,
+    "app_write_denied": "EROFS",
+    "helper_sha256": "c675c34ab7898b0fcb031756763892cc1b4fd7a4056b5b81e2c5a968402ffb80",
+    "aliases_before": [
+      {
+        "name": "libcrypto.so.1",
+        "exists": false
+      },
+      {
+        "name": "libssl.so.1",
+        "exists": false
+      }
+    ],
+    "preparation": "EROFS",
+    "postgres_exit": 0,
+    "postgres_stdout": "postgres (PostgreSQL) 18.1",
+    "postgres_stderr": ""
+  },
+  "fixture_containers_remaining": [],
+  "fixture_image_remaining": false
+}
