@@ -7,7 +7,8 @@ export type OpenClawIsolationFailure = {
     | "openclaw_gateway_agent_not_found"
     | "openclaw_gateway_main_agent_forbidden"
     | "openclaw_gateway_sandbox_not_enforced"
-    | "openclaw_gateway_sandbox_scope_shared";
+    | "openclaw_gateway_sandbox_scope_shared"
+    | "openclaw_gateway_cli_process_isolation_unverified";
   message: string;
 };
 
@@ -34,6 +35,52 @@ function configRoot(snapshot: unknown): JsonRecord | null {
     if (candidate) return candidate;
   }
   return outer;
+}
+
+function modelPrimary(value: unknown): string | null {
+  return nonEmpty(value) ?? nonEmpty(asRecord(value)?.primary);
+}
+
+function modelFallbacks(value: unknown): string[] | undefined {
+  const object = asRecord(value);
+  if (object && Object.hasOwn(object, "fallbacks")) {
+    return Array.isArray(object.fallbacks)
+      ? object.fallbacks.map(nonEmpty).filter((ref): ref is string => ref !== null)
+      : undefined;
+  }
+  // OpenClaw's explicit primary (including string shorthand) clears inherited
+  // fallbacks unless the selected model object explicitly supplies them.
+  return modelPrimary(value) ? [] : undefined;
+}
+
+function hasConfiguredCliRoute(defaults: JsonRecord | null, selected: JsonRecord): boolean {
+  // Built-in CLI backends registered by the installed Anthropic/Google plugins.
+  // Custom backends need not use a "-cli" name and override provider routing.
+  const cliProviders = new Set([
+    "claude-cli",
+    "google-gemini-cli",
+    ...Object.keys(asRecord(defaults?.cliBackends) ?? {}).map((id) => id.trim().toLowerCase()),
+  ]);
+  const primary = modelPrimary(selected.model) ?? modelPrimary(defaults?.model);
+  const fallbacks = modelFallbacks(selected.model) ?? modelFallbacks(defaults?.model) ?? [];
+  const catalog = asRecord(defaults?.models) ?? {};
+  return [primary, ...fallbacks].some((raw) => {
+    if (!raw) return false;
+    // Alias/auth-profile syntax can otherwise conceal the actual CLI provider.
+    const reference = raw.trim();
+    const withoutProfile = reference.split("@", 1)[0].trim();
+    const candidates = [reference, withoutProfile];
+    for (const [key, value] of Object.entries(catalog)) {
+      const alias = nonEmpty(asRecord(value)?.alias)?.toLowerCase();
+      if (alias && [reference, withoutProfile].some((ref) => ref.toLowerCase() === alias)) {
+        candidates.push(key);
+      }
+    }
+    return candidates.some((ref) => {
+      const slash = ref.indexOf("/");
+      return slash > 0 && cliProviders.has(ref.slice(0, slash).trim().toLowerCase());
+    });
+  });
 }
 
 /**
@@ -106,6 +153,15 @@ export function validateOpenClawIsolationSnapshot(
       ok: false,
       code: "openclaw_gateway_sandbox_scope_shared",
       message: `OpenClaw agent ${configuredAgentId} cannot use shared sandbox scope.`,
+    };
+  }
+
+  if (hasConfiguredCliRoute(defaults, selected)) {
+    return {
+      ok: false,
+      code: "openclaw_gateway_cli_process_isolation_unverified",
+      message:
+        "OpenClaw CLI backends require verified process isolation; sandbox.mode=all does not isolate native CLI tools. Use an embedded backend until that execution boundary is verifiable.",
     };
   }
 

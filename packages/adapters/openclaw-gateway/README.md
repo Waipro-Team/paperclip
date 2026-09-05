@@ -83,3 +83,23 @@ rather than reaching for a git remote. See
 [`packages/adapters/AUTHORING.md`](../AUTHORING.md#no-remote-git-contract-cross-run-persistence)
 for the full contract and the pinning test at
 [`packages/adapter-utils/src/ssh-fixture.test.ts`](../../adapter-utils/src/ssh-fixture.test.ts).
+
+## CLI process isolation gate
+
+The adapter rejects the built-in `claude-cli` and `google-gemini-cli`
+providers and any provider declared in `agents.defaults.cliBackends` when
+selected by the agent's effective primary or fallback models. Model aliases
+from `agents.defaults.models` are also checked. Explicit per-agent primary
+models clear inherited fallbacks unless that model supplies its own fallback
+list, matching the inspected OpenClaw runtime.
+
+Setting `sandbox.mode=all` does not establish isolation of a native CLI process
+or its native tools. There is no override flag: native harnesses need a future,
+verifiable execution boundary before this adapter can admit those routes.
+The error is `openclaw_gateway_cli_process_isolation_unverified`.
+
+This check evaluates the configuration snapshot, not an authenticated process
+attestation. It does not verify runtime-only plugin backend registrations or
+model overrides introduced through request payloads/session state. Consequently,
+passing this gate does not certify complete execution isolation; those routes
+remain a release/integration limitation requiring separate verification.
