@@ -1,0 +1,10 @@
+{
+  "owner": "Fabry/core_product_audit",
+  "baseline": "ee0138a6245b8edcf04f878d14e524cad68035a9",
+  "scope": [
+    "scripts/portal360-image-preflight/prepare-lock-context.py",
+    "doc/evidence/full-image-ci/uid-fix/"
+  ],
+  "script_before_sha256": "432e29a8aaa6f72c3e8b7c307aeae65323a739909fb85c0cc1b6bb89f2a59175",
+  "state": "active"
+}

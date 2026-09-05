@@ -12,7 +12,9 @@ NAME="portal360-lock-preflight-"+str(os.getpid())
 def sha(b):return hashlib.sha256(b).hexdigest()
 report={"commit":COMMIT,"timestamp":datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "workflow":".github/workflows/docker.yml:90","command":"pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile",
-        "root_worktree_lock_modified":False,"container_memory":"2g","container_cpus":1,"container_network":"bridge (registry metadata only)"}
+        "root_worktree_lock_modified":False,
+        "container_user":str(os.getuid())+":"+str(os.getgid()),
+        "container_home":"/tmp","container_corepack_cache":"/tmp/corepack","container_memory":"2g","container_cpus":1,"container_network":"bridge (registry metadata only)"}
 try:
     with tempfile.TemporaryDirectory(prefix="paperclip-lock-context-") as temp:
         context=Path(temp)
@@ -24,6 +26,8 @@ try:
         report["node_image_id"]=image
         args=["docker","run","--rm","--name",NAME,"--memory","2g","--cpus","1","--pids-limit","128",
               "--cap-drop","ALL","--security-opt","no-new-privileges",
+              "--user",str(os.getuid())+":"+str(os.getgid()),
+              "--env","HOME=/tmp","--env","COREPACK_HOME=/tmp/corepack",
               "--env","COREPACK_ENABLE_DOWNLOAD_PROMPT=0",
               "--mount","type=bind,src="+temp+",dst=/context","--workdir","/context",
               "--entrypoint","corepack",image,"pnpm","install","--lockfile-only","--ignore-scripts","--no-frozen-lockfile"]

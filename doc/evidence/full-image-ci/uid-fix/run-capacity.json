@@ -1,0 +1,22 @@
+{
+  "source_commit": "ee0138a6245b8edcf04f878d14e524cad68035a9",
+  "runner_label": "ubuntu-24.04",
+  "runner_environment": "github-hosted",
+  "timestamp": "2026-09-05T06:44:17.766706+00:00",
+  "minimum_start_free_gib": 40,
+  "abort_free_gib": 18,
+  "free_bytes_before": 92294721536,
+  "removed_sdk_paths": [
+    "/usr/share/dotnet",
+    "/usr/share/swift",
+    "/usr/local/lib/android",
+    "/usr/local/share/powershell",
+    "/opt/hostedtoolcache/CodeQL",
+    "/opt/hostedtoolcache/PyPy",
+    "/opt/hostedtoolcache/Ruby"
+  ],
+  "global_prune": false,
+  "free_bytes_after": 117625860096,
+  "available_memory_bytes": 15735615488,
+  "status": "capacity_pass"
+}
