@@ -1,0 +1,80 @@
+name: Portal360 isolated image preflight
+
+on:
+  pull_request:
+    paths:
+      - '**'
+      - '!doc/evidence/**'
+      - '!.github/**'
+      - '.github/workflows/portal360-image-preflight.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal360-image-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  image-preflight:
+    if: >-
+      github.repository == 'Waipro-Team/paperclip' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/portal360-reconcile-20260902'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PAPERCLIP_PREFLIGHT_COMMIT: ${{ github.event.pull_request.head.sha }}
+      PAPERCLIP_PREFLIGHT_OUTPUT: ${{ runner.temp }}/paperclip-image-preflight
+    steps:
+      - name: Checkout exact candidate head without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify pure environment guards
+        run: python3 -I -B scripts/portal360-image-preflight/test_preflight_config.py
+
+      - name: Prepare only this disposable hosted runner and measure capacity
+        run: python3 -I -B scripts/portal360-image-preflight/preflight_config.py prepare-runner
+
+      - name: Inspect Docker tooling and obtain public preprocessing image
+        run: |
+          set -euo pipefail
+          docker version
+          docker buildx version
+          docker pull node:24
+
+      - name: Capture official lock preprocessing without changing source checkout
+        run: python3 -I -B scripts/portal360-image-preflight/prepare-lock-context.py
+
+      - name: Build exact candidate with bounded dedicated builder
+        run: python3 -I -B scripts/portal360-image-preflight/build-candidate.py
+
+      - name: Probe authentication and intake route on the exact isolated image ID
+        run: python3 -I -B scripts/portal360-image-preflight/smoke-image.py
+
+      - name: Remove only the candidate image created by this job
+        if: always()
+        run: python3 -I -B scripts/portal360-image-preflight/preflight_config.py cleanup-image
+
+      - name: Upload only declared preflight evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: portal360-image-preflight-${{ github.event.pull_request.head.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/paperclip-image-preflight/capacity.json
+            ${{ runner.temp }}/paperclip-image-preflight/lock-refresh-result.json
+            ${{ runner.temp }}/paperclip-image-preflight/lock-refresh.txt
+            ${{ runner.temp }}/paperclip-image-preflight/docker-context-lock.yaml
+            ${{ runner.temp }}/paperclip-image-preflight/docker-context-lock.diff
+            ${{ runner.temp }}/paperclip-image-preflight/build-result.json
+            ${{ runner.temp }}/paperclip-image-preflight/bootstrap.txt
+            ${{ runner.temp }}/paperclip-image-preflight/build.txt
+            ${{ runner.temp }}/paperclip-image-preflight/smoke-result.json
+            ${{ runner.temp }}/paperclip-image-preflight/ci-cleanup.json
