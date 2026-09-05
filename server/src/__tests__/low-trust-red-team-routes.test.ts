@@ -4,7 +4,7 @@ import express from "express";
 import request from "supertest";
 import { WebSocketServer } from "ws";
 import { and, eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
   agentWakeupRequests,
@@ -48,6 +48,32 @@ import { agentRoutes } from "../routes/agents.js";
 import { issueRoutes } from "../routes/issues.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { LOW_TRUST_QUARANTINED_BODY } from "../services/source-trust.js";
+
+// These suites exercise wake batching / content redaction over an in-process
+// gateway fixture. They do not attest a real OpenClaw execution boundary.
+// Only snapshots emitted by a currently registered fixture can mock that gate;
+// request/config checks and the real adapter guard suites remain intact.
+const controlledGatewayFixtures = vi.hoisted(() => new Map<string, string>());
+
+vi.mock(import("../../../packages/adapters/openclaw-gateway/src/server/isolation.js"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    validateOpenClawExecutionIsolation: (...args: Parameters<typeof actual.validateOpenClawExecutionIsolation>) => {
+      const [snapshot, agentId, params] = args;
+      const fixtureId = snapshot && typeof snapshot === "object"
+        ? (snapshot as Record<string, unknown>).controlledGatewayFixture
+        : undefined;
+      if (typeof fixtureId !== "string" || controlledGatewayFixtures.get(fixtureId) !== agentId) {
+        return actual.validateOpenClawExecutionIsolation(...args);
+      }
+      const request = actual.validateOpenClawRequestIsolation(params, agentId);
+      return request.ok ? actual.validateOpenClawIsolationSnapshot(snapshot, agentId) : request;
+    },
+  };
+});
+
+import { validateOpenClawExecutionIsolation } from "../../../packages/adapters/openclaw-gateway/src/server/isolation.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -176,7 +202,61 @@ function createApp(db: Db, actor: Express.Request["actor"]) {
 
 const TEST_OPENCLAW_AGENT_ID = "paperclip-low-trust-test-agent";
 
+describe("controlled gateway transport boundary", () => {
+  function snapshot(fixtureId: string) {
+    return {
+      controlledGatewayFixture: fixtureId,
+      sourceConfig: {
+        agents: {
+          defaults: { sandbox: { mode: "all", scope: "session" } },
+          list: [{ id: TEST_OPENCLAW_AGENT_ID }],
+        },
+      },
+    };
+  }
+
+  const params = () => ({
+    agentId: TEST_OPENCLAW_AGENT_ID,
+    sessionKey: "agent:" + TEST_OPENCLAW_AGENT_ID + ":fixture",
+  });
+
+  it("admits only the registered fixture lifetime and keeps stock snapshots denied", () => {
+    const fixtureId = randomUUID();
+    const config = snapshot(fixtureId);
+    expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toMatchObject({
+      ok: false,
+      code: "openclaw_gateway_execution_isolation_unverified",
+    });
+    controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+    try {
+      expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toEqual({ ok: true });
+      expect(validateOpenClawExecutionIsolation({ sourceConfig: config.sourceConfig }, TEST_OPENCLAW_AGENT_ID, params()))
+        .toMatchObject({ ok: false, code: "openclaw_gateway_execution_isolation_unverified" });
+    } finally {
+      controlledGatewayFixtures.delete(fixtureId);
+    }
+    expect(validateOpenClawExecutionIsolation(config, TEST_OPENCLAW_AGENT_ID, params())).toMatchObject({ ok: false });
+  });
+
+  it("preserves request and configuration rejection inside the transport fixture", () => {
+    const fixtureId = randomUUID();
+    controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+    try {
+      expect(validateOpenClawExecutionIsolation(snapshot(fixtureId), TEST_OPENCLAW_AGENT_ID, {
+        ...params(), model: "unverified-model",
+      })).toMatchObject({ ok: false, code: "openclaw_gateway_request_route_unverified" });
+      const unsafe = snapshot(fixtureId);
+      unsafe.sourceConfig.agents.defaults.sandbox.mode = "off";
+      expect(validateOpenClawExecutionIsolation(unsafe, TEST_OPENCLAW_AGENT_ID, params()))
+        .toMatchObject({ ok: false, code: "openclaw_gateway_sandbox_not_enforced" });
+    } finally {
+      controlledGatewayFixtures.delete(fixtureId);
+    }
+  });
+});
+
 async function createControlledGatewayServer() {
+  const fixtureId = randomUUID();
   const server = createServer();
   const wss = new WebSocketServer({ server });
   const agentPayloads: Array<Record<string, unknown>> = [];
@@ -232,6 +312,7 @@ async function createControlledGatewayServer() {
             id: frame.id,
             ok: true,
             payload: {
+              controlledGatewayFixture: fixtureId,
               sourceConfig: {
                 agents: {
                   defaults: { sandbox: { mode: "all", scope: "session" } },
@@ -292,6 +373,8 @@ async function createControlledGatewayServer() {
     throw new Error("Failed to resolve test server address");
   }
 
+  controlledGatewayFixtures.set(fixtureId, TEST_OPENCLAW_AGENT_ID);
+
   return {
     url: `ws://127.0.0.1:${address.port}`,
     getAgentPayloads: () => agentPayloads,
@@ -301,6 +384,7 @@ async function createControlledGatewayServer() {
       firstWaitGate = Promise.resolve();
     },
     close: async () => {
+      controlledGatewayFixtures.delete(fixtureId);
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },

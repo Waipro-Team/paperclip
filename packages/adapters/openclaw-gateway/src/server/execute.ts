@@ -16,6 +16,7 @@ import {
 import crypto, { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { validateOpenClawExecutionIsolation, validateOpenClawRequestIsolation } from "./isolation.js";
+import { canonicalBoundaryParams, createTrustedBoundaryClient, TrustedBoundaryError } from "./trusted-boundary.js";
 
 type SessionKeyStrategy = "fixed" | "issue" | "run";
 
@@ -1050,7 +1051,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       errorCode: "openclaw_gateway_agent_id_missing",
     };
   }
-  if (configuredAgentId.toLowerCase() === "main") {
+  const boundaryId = nonEmpty(ctx.config.boundaryId);
+  if (Object.hasOwn(ctx.config, "boundaryId") && !boundaryId) {
+    return { exitCode: 1, signal: null, timedOut: false,
+      errorCode: "openclaw_boundary_selector_invalid", errorMessage: "A nonempty boundaryId is required." };
+  }
+  const boundaryIdentity = boundaryId ? { boundaryId, companyId: ctx.agent.companyId,
+    paperclipAgentId: ctx.agent.id, openclawAgentId: configuredAgentId, runId: ctx.runId } : null;
+
+  if (!boundaryIdentity && configuredAgentId.toLowerCase() === "main") {
     return {
       exitCode: 1,
       signal: null,
@@ -1072,36 +1081,40 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     };
   }
 
-  const urlValue = asString(ctx.config.url, "").trim();
-  if (!urlValue) {
-    return {
-      exitCode: 1,
-      signal: null,
-      timedOut: false,
-      errorMessage: "OpenClaw gateway adapter missing url",
-      errorCode: "openclaw_gateway_url_missing",
-    };
-  }
+  // A bound invocation never reads an endpoint or gateway credential from user config.
+  let parsedUrl: URL | null = null;
+  if (!boundaryIdentity) {
+    const urlValue = asString(ctx.config.url, "").trim();
+    if (!urlValue) {
+      return {
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        errorMessage: "OpenClaw gateway adapter missing url",
+        errorCode: "openclaw_gateway_url_missing",
+      };
+    }
 
-  const parsedUrl = normalizeUrl(urlValue);
-  if (!parsedUrl) {
-    return {
-      exitCode: 1,
-      signal: null,
-      timedOut: false,
-      errorMessage: `Invalid gateway URL: ${urlValue}`,
-      errorCode: "openclaw_gateway_url_invalid",
-    };
-  }
+    parsedUrl = normalizeUrl(urlValue);
+    if (!parsedUrl) {
+      return {
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        errorMessage: `Invalid gateway URL: ${urlValue}`,
+        errorCode: "openclaw_gateway_url_invalid",
+      };
+    }
 
-  if (parsedUrl.protocol !== "ws:" && parsedUrl.protocol !== "wss:") {
-    return {
-      exitCode: 1,
-      signal: null,
-      timedOut: false,
-      errorMessage: `Unsupported gateway URL protocol: ${parsedUrl.protocol}`,
-      errorCode: "openclaw_gateway_url_protocol",
-    };
+    if (parsedUrl.protocol !== "ws:" && parsedUrl.protocol !== "wss:") {
+      return {
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        errorMessage: `Unsupported gateway URL protocol: ${parsedUrl.protocol}`,
+        errorCode: "openclaw_gateway_url_protocol",
+      };
+    }
   }
 
   const timeoutSec = Math.max(0, Math.floor(asNumber(ctx.config.timeoutSec, 120)));
@@ -1111,10 +1124,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const transportHint = nonEmpty(ctx.config.streamTransport) ?? nonEmpty(ctx.config.transport);
 
-  const headers = toStringRecord(ctx.config.headers);
-  const authToken = resolveAuthToken(parseObject(ctx.config), headers);
-  const password = nonEmpty(ctx.config.password);
-  const deviceToken = nonEmpty(ctx.config.deviceToken);
+  const headers = boundaryIdentity ? {} : toStringRecord(ctx.config.headers);
+  const authToken = boundaryIdentity ? null : resolveAuthToken(parseObject(ctx.config), headers);
+  const password = boundaryIdentity ? null : nonEmpty(ctx.config.password);
+  const deviceToken = boundaryIdentity ? null : nonEmpty(ctx.config.deviceToken);
 
   if (authToken && !headerMapHasIgnoreCase(headers, "authorization")) {
     headers.authorization = toAuthorizationHeaderValue(authToken);
@@ -1158,14 +1171,18 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const templateMessage = nonEmpty(payloadTemplate.message) ?? nonEmpty(payloadTemplate.text);
   const message = templateMessage ? appendWakeText(templateMessage, wakeText) : wakeText;
 
-  const agentParams = buildAgentParams({
-    payloadTemplate,
-    message,
-    sessionKey,
-    runId: ctx.runId,
-    configuredAgentId,
-    waitTimeoutMs,
-  });
+  let agentParams: Record<string, unknown>;
+  try {
+    agentParams = boundaryIdentity ? canonicalBoundaryParams({
+      identity: boundaryIdentity, message, template: payloadTemplate,
+      // OpenClaw agent.timeout is in SECONDS; zero disables its deadline.
+      timeoutSeconds: Math.min(timeoutSec, 120),
+    }) : buildAgentParams({ payloadTemplate, message, sessionKey, runId: ctx.runId,
+      configuredAgentId, waitTimeoutMs });
+  } catch {
+    return { exitCode: 1, signal: null, timedOut: false,
+      errorCode: "openclaw_boundary_params_invalid", errorMessage: "The trusted boundary request is invalid." };
+  }
 
   const requestIsolation = validateOpenClawRequestIsolation(agentParams, configuredAgentId);
   if (!requestIsolation.ok) {
@@ -1181,33 +1198,35 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (ctx.onMeta) {
     await ctx.onMeta({
       adapterType: "openclaw_gateway",
-      command: "gateway",
-      commandArgs: ["ws", parsedUrl.toString(), "agent"],
+      command: boundaryIdentity ? "ssh-boundary" : "gateway",
+      commandArgs: boundaryIdentity ? [boundaryIdentity.boundaryId, "agent"] : ["ws", parsedUrl!.toString(), "agent"],
       context: ctx.context,
     });
   }
 
-  const outboundHeaderKeys = Object.keys(headers).sort();
-  await ctx.onLog(
-    "stdout",
-    `[openclaw-gateway] outbound headers (redacted): ${stringifyForLog(redactForLog(headers), 4_000)}\n`,
-  );
-  await ctx.onLog(
-    "stdout",
-    `[openclaw-gateway] outbound payload (redacted): ${stringifyForLog(redactForLog(agentParams), 12_000)}\n`,
-  );
-  await ctx.onLog("stdout", `[openclaw-gateway] outbound header keys: ${outboundHeaderKeys.join(", ")}\n`);
-  if (transportHint) {
+  if (!boundaryIdentity && parsedUrl) {
+    const outboundHeaderKeys = Object.keys(headers).sort();
     await ctx.onLog(
       "stdout",
-      `[openclaw-gateway] ignoring streamTransport=${transportHint}; gateway adapter always uses websocket protocol\n`,
+      `[openclaw-gateway] outbound headers (redacted): ${stringifyForLog(redactForLog(headers), 4_000)}\n`,
     );
-  }
-  if (parsedUrl.protocol === "ws:" && !isLoopbackHost(parsedUrl.hostname)) {
     await ctx.onLog(
       "stdout",
-      "[openclaw-gateway] warning: using plaintext ws:// to a non-loopback host; prefer wss:// for remote endpoints\n",
+      `[openclaw-gateway] outbound payload (redacted): ${stringifyForLog(redactForLog(agentParams), 12_000)}\n`,
     );
+    await ctx.onLog("stdout", `[openclaw-gateway] outbound header keys: ${outboundHeaderKeys.join(", ")}\n`);
+    if (transportHint) {
+      await ctx.onLog(
+        "stdout",
+        `[openclaw-gateway] ignoring streamTransport=${transportHint}; gateway adapter always uses websocket protocol\n`,
+      );
+    }
+    if (parsedUrl.protocol === "ws:" && !isLoopbackHost(parsedUrl.hostname)) {
+      await ctx.onLog(
+        "stdout",
+        "[openclaw-gateway] warning: using plaintext ws:// to a non-loopback host; prefer wss:// for remote endpoints\n",
+      );
+    }
   }
 
   const autoPairOnFirstConnect = parseBoolean(ctx.config.autoPairOnFirstConnect, true);
@@ -1277,99 +1296,103 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     };
 
-    const client = new GatewayWsClient({
-      url: parsedUrl.toString(),
-      headers,
-      onEvent,
-      onLog: ctx.onLog,
-    });
-
+    let client: GatewayWsClient | Awaited<ReturnType<typeof createTrustedBoundaryClient>> | null = null;
     try {
-      deviceIdentity = disableDeviceAuth ? null : resolveDeviceIdentity(parseObject(ctx.config));
-      if (deviceIdentity) {
-        await ctx.onLog(
-          "stdout",
-          `[openclaw-gateway] device auth enabled keySource=${deviceIdentity.source} deviceId=${deviceIdentity.deviceId}\n`,
-        );
+      if (boundaryIdentity) {
+        const trustedClient = await createTrustedBoundaryClient({ identity: boundaryIdentity, params: agentParams, onEvent });
+        client = trustedClient;
+        await trustedClient.connect(connectTimeoutMs);
+        await ctx.onLog("stdout", "[openclaw-gateway] trusted broker session verified for this run\n");
       } else {
-        await ctx.onLog("stdout", "[openclaw-gateway] device auth disabled\n");
-      }
-
-      await ctx.onLog("stdout", `[openclaw-gateway] connecting to ${parsedUrl.toString()}\n`);
-
-      const hello = await client.connect((nonce) => {
-        const signedAtMs = Date.now();
-        const connectParams: Record<string, unknown> = {
-          minProtocol: PROTOCOL_VERSION,
-          maxProtocol: PROTOCOL_VERSION,
-          client: {
-            id: clientId,
-            version: clientVersion,
-            platform: process.platform,
-            ...(deviceFamily ? { deviceFamily } : {}),
-            mode: clientMode,
-          },
-          role,
-          scopes,
-          auth:
-            authToken || password || deviceToken
-              ? {
-                  ...(authToken ? { token: authToken } : {}),
-                  ...(deviceToken ? { deviceToken } : {}),
-                  ...(password ? { password } : {}),
-                }
-              : undefined,
-        };
-
+        if (!parsedUrl) throw new Error("openclaw_gateway_url_missing");
+        const gateway = new GatewayWsClient({ url: parsedUrl.toString(), headers, onEvent, onLog: ctx.onLog });
+        client = gateway;
+        deviceIdentity = disableDeviceAuth ? null : resolveDeviceIdentity(parseObject(ctx.config));
         if (deviceIdentity) {
-          const payload = buildDeviceAuthPayloadV3({
-            deviceId: deviceIdentity.deviceId,
-            clientId,
-            clientMode,
+          await ctx.onLog(
+            "stdout",
+            `[openclaw-gateway] device auth enabled keySource=${deviceIdentity.source} deviceId=${deviceIdentity.deviceId}\n`,
+          );
+        } else {
+          await ctx.onLog("stdout", "[openclaw-gateway] device auth disabled\n");
+        }
+
+        await ctx.onLog("stdout", `[openclaw-gateway] connecting to ${parsedUrl.toString()}\n`);
+
+        const hello = await gateway.connect((nonce) => {
+          const signedAtMs = Date.now();
+          const connectParams: Record<string, unknown> = {
+            minProtocol: PROTOCOL_VERSION,
+            maxProtocol: PROTOCOL_VERSION,
+            client: {
+              id: clientId,
+              version: clientVersion,
+              platform: process.platform,
+              ...(deviceFamily ? { deviceFamily } : {}),
+              mode: clientMode,
+            },
             role,
             scopes,
-            signedAtMs,
-            token: authToken,
-            nonce,
-            platform: process.platform,
-            deviceFamily,
-          });
-          connectParams.device = {
-            id: deviceIdentity.deviceId,
-            publicKey: deviceIdentity.publicKeyRawBase64Url,
-            signature: signDevicePayload(deviceIdentity.privateKeyPem, payload),
-            signedAt: signedAtMs,
-            nonce,
+            auth:
+              authToken || password || deviceToken
+                ? {
+                    ...(authToken ? { token: authToken } : {}),
+                    ...(deviceToken ? { deviceToken } : {}),
+                    ...(password ? { password } : {}),
+                  }
+                : undefined,
+          };
+
+          if (deviceIdentity) {
+            const payload = buildDeviceAuthPayloadV3({
+              deviceId: deviceIdentity.deviceId,
+              clientId,
+              clientMode,
+              role,
+              scopes,
+              signedAtMs,
+              token: authToken,
+              nonce,
+              platform: process.platform,
+              deviceFamily,
+            });
+            connectParams.device = {
+              id: deviceIdentity.deviceId,
+              publicKey: deviceIdentity.publicKeyRawBase64Url,
+              signature: signDevicePayload(deviceIdentity.privateKeyPem, payload),
+              signedAt: signedAtMs,
+              nonce,
+            };
+          }
+          return connectParams;
+        }, connectTimeoutMs);
+
+        await ctx.onLog(
+          "stdout",
+          `[openclaw-gateway] connected protocol=${asNumber(asRecord(hello)?.protocol, PROTOCOL_VERSION)}\n`,
+        );
+
+        const isolationSnapshot = await client.request<unknown>("config.get", {}, {
+          timeoutMs: connectTimeoutMs,
+        });
+        const isolationValidation = validateOpenClawExecutionIsolation(
+          isolationSnapshot,
+          configuredAgentId,
+          agentParams,
+        );
+        if (!isolationValidation.ok) {
+          await ctx.onLog(
+            "stderr",
+            `[openclaw-gateway] isolation gate failed: ${isolationValidation.message}\n`,
+          );
+          return {
+            exitCode: 1,
+            signal: null,
+            timedOut: false,
+            errorMessage: isolationValidation.message,
+            errorCode: isolationValidation.code,
           };
         }
-        return connectParams;
-      }, connectTimeoutMs);
-
-      await ctx.onLog(
-        "stdout",
-        `[openclaw-gateway] connected protocol=${asNumber(asRecord(hello)?.protocol, PROTOCOL_VERSION)}\n`,
-      );
-
-      const isolationSnapshot = await client.request<unknown>("config.get", {}, {
-        timeoutMs: connectTimeoutMs,
-      });
-      const isolationValidation = validateOpenClawExecutionIsolation(
-        isolationSnapshot,
-        configuredAgentId,
-        agentParams,
-      );
-      if (!isolationValidation.ok) {
-        await ctx.onLog(
-          "stderr",
-          `[openclaw-gateway] isolation gate failed: ${isolationValidation.message}\n`,
-        );
-        return {
-          exitCode: 1,
-          signal: null,
-          timedOut: false,
-          errorMessage: isolationValidation.message,
-          errorCode: isolationValidation.code,
-        };
       }
 
       // Keep any server-side continuation lock through retryable websocket
@@ -1420,7 +1443,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
             exitCode: 1,
             signal: null,
             timedOut: true,
-            errorMessage: `OpenClaw gateway run timed out after ${waitTimeoutMs}ms`,
+            errorMessage: boundaryIdentity
+              ? "The trusted boundary run timed out; its state remains indeterminate."
+              : `OpenClaw gateway run timed out after ${waitTimeoutMs}ms`,
             errorCode: "openclaw_gateway_wait_timeout",
             resultJson: waitPayload,
           };
@@ -1497,6 +1522,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         ...(summary ? { summary } : {}),
       };
     } catch (err) {
+      if (boundaryIdentity) {
+        const code = err instanceof TrustedBoundaryError ? err.code : "openclaw_boundary_transport_failed";
+        return { exitCode: 1, signal: null, timedOut: /timeout|deadline/.test(code),
+          errorCode: code, errorMessage: "The trusted broker session failed; no automatic replay was attempted.",
+          resultJson: { boundaryId: boundaryIdentity.boundaryId, runId: ctx.runId,
+            dispatched: dispatchReported, indeterminate: dispatchReported } };
+      }
       const message = err instanceof Error ? err.message : String(err);
       const lower = message.toLowerCase();
       const timedOut = lower.includes("timeout");
@@ -1511,7 +1543,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       ) {
         autoPairAttempted = true;
         const pairResult = await autoApproveDevicePairing({
-          url: parsedUrl.toString(),
+          url: parsedUrl!.toString(),
           headers,
           connectTimeoutMs,
           clientId,
@@ -1576,7 +1608,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         resultJson: asRecord(latestResultPayload),
       };
     } finally {
-      client.close();
+      client?.close();
     }
   }
 }

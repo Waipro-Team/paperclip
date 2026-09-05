@@ -1,0 +1,42 @@
+1:
+2: > paperclip@ build /root/work/paperclip-portal360-reconcile-20260902
+3: > pnpm run preflight:workspace-links && pnpm -r build
+4:
+5:
+6: > paperclip@ preflight:workspace-links /root/work/paperclip-portal360-reconcile-20260902
+7: > node cli/node_modules/tsx/dist/cli.mjs scripts/ensure-workspace-package-links.ts
+8:
+9: Scope: 34 of 35 workspace projects
+35: packages/paperclip-runner build: warning: function `validate_tool_result_contract` is never used
+41: packages/paperclip-runner build:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+42: packages/paperclip-runner build: warning: `paperclip-runner-core` (lib) generated 1 warning
+144: ui build: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+148: ui build: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+158: ui build: Found 4 warnings while optimizing generated CSS:
+203: server build: warning: function `validate_tool_result_contract` is never used
+209: server build:     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+210: server build: warning: `paperclip-runner-core` (lib) generated 1 warning
+436: ui build: ✓ built in 8.97s
+437: ui build: [INEFFECTIVE_DYNAMIC_IMPORT] src/components/MarkdownEditor.tsx is dynamically imported by src/plugins/bridge-init.ts but also statically imported by src/components/AgentConfigForm.tsx, src/components/InlineEditor.tsx, src/components/IssueChatThread.tsx, src/components/IssueDocumentsSection.tsx, src/components/NewGoalDialog.tsx, ..., dynamic import will not move module into another chunk.
+438: ui build: [plugin builtin:vite-reporter]
+439: ui build: (!) Some chunks are larger than 500 kB after minification. Consider:
+440: ui build: - Using dynamic import() to code-split the application
+441: ui build: - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+442: ui build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+443: ui build: [INEFFECTIVE_DYNAMIC_IMPORT] src/components/ConfigureBuiltInAgentModal.tsx is dynamically imported by src/pages/Agents.tsx but also statically imported by src/components/SummarySlotCard.tsx, src/pages/AgentDetail.tsx, dynamic import will not move module into another chunk.
+444: ui build: Done
+445: server build: npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+446: server build: added 52 packages in 13s
+447: server build: patching file dist/index.js
+448: server build: Hunk #1 succeeded at 25563 with fuzz 2.
+449: server build: Hunk #5 succeeded at 27348 with fuzz 1.
+450: server build: Hunk #8 succeeded at 27502 with fuzz 1.
+451: server build: patching file dist/live-checkpoint-BSIrfgVo.js
+452: server build: Hunk #4 succeeded at 4294 (offset -1 lines).
+453: server build: patching file dist/runtime.d.ts
+454: server build: patching file dist/runtime.js
+455: server build: patching file dist/session-options-DwRDODlr.d.ts
+456: server build: [build-stamp] wrote /root/work/paperclip-portal360-reconcile-20260902/server/dist/build-info.json commit=a21ac20a3
+457: server build: Done
+458: cli build$ node --input-type=module -e "import esbuild from 'esbuild'; import config from './esbuild.config.mjs'; await esbuild.build(config);" && chmod +x dist/index.js
+459: cli build: Done

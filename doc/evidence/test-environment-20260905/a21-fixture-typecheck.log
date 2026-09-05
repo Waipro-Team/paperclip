@@ -1,0 +1,46 @@
+
+> @paperclipai/server@0.3.1 typecheck /root/work/paperclip-portal360-reconcile-20260902/server
+> pnpm run prepare:runner-vendor && pnpm --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit
+
+
+> @paperclipai/server@0.3.1 prepare:runner-vendor /root/work/paperclip-portal360-reconcile-20260902/server
+> pnpm --filter @paperclipai/paperclip-runner build
+
+
+> @paperclipai/paperclip-runner@0.0.0 build /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+> pnpm run check:protocol-manifest && pnpm run build:typescript && pnpm run build:binary && node scripts/generate-replay-goldens.mjs --check && node scripts/generate-semantic-action-catalog.mjs --check
+
+
+> @paperclipai/paperclip-runner@0.0.0 check:protocol-manifest /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+> node scripts/generate-protocol-manifest.mjs --check
+
+The generated PRP contract manifest matches its sources.
+
+> @paperclipai/paperclip-runner@0.0.0 build:typescript /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+> pnpm run check:protocol-types && tsc -p tsconfig.json
+
+
+> @paperclipai/paperclip-runner@0.0.0 check:protocol-types /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+> node scripts/generate-protocol-schema-module.mjs --check && node scripts/generate-acpx-sidecar-contract.mjs --check
+
+Generated PRP schema module matches the JSON Schema sources.
+Generated TypeScript/Rust ACPX sidecar contracts match the schema.
+
+> @paperclipai/paperclip-runner@0.0.0 build:binary /root/work/paperclip-portal360-reconcile-20260902/packages/paperclip-runner
+> cargo build --release --manifest-path runner/Cargo.toml --locked -p paperclip-runner-core --bin paperclip-runnerd && node scripts/stage-runner-binary.mjs
+
+Replay golden snapshots and parity summaries are current.
+
+> @paperclipai/plugin-sdk@1.0.0 ensure-build-deps /root/work/paperclip-portal360-reconcile-20260902/packages/plugins/sdk
+> node ../../../scripts/ensure-plugin-build-deps.mjs
+
+warning: function `validate_tool_result_contract` is never used
+   --> crates/runner-core/src/provider_bridge.rs:953:4
+    |
+953 | fn validate_tool_result_contract(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `paperclip-runner-core` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.20s

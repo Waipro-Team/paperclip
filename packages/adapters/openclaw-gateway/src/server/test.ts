@@ -239,6 +239,12 @@ export async function testEnvironment(
 ): Promise<AdapterEnvironmentTestResult> {
   const checks: AdapterEnvironmentCheck[] = [];
   const config = parseObject(ctx.config);
+  if (Object.hasOwn(config, "boundaryId")) {
+    return { adapterType: ctx.adapterType, status: "fail", testedAt: new Date().toISOString(),
+      checks: [{ level: "error", code: "openclaw_boundary_execution_identity_required",
+        message: "The environment probe has no server-derived Paperclip agent identity. Verify this boundary in an authorized run.",
+        hint: "A boundary selector or a configuration snapshot cannot attest the full execution identity." }] };
+  }
   if (ctx.executionTarget?.kind === "remote") {
     checks.push({
       code: "openclaw_gateway_execution_target_unsupported",

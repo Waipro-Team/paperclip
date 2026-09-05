@@ -1,0 +1,228 @@
+{
+  "recorded_at_utc": "2026-09-05T21:04:44.308349+00:00",
+  "head": "a21ac20a31cc3f69c38b47699bf3eade4d1d04da",
+  "run_id": 33990590162,
+  "run_url": "https://github.com/Waipro-Team/paperclip/actions/runs/33990590162",
+  "jobs": [
+    {
+      "job_id": 101372083281,
+      "log_sha256": "b82089a3c03221ba5b49619bca4a4d507295612624db87d73226b2feff3c7352",
+      "log_bytes": 2360939,
+      "log_lines": 33866,
+      "counts": {
+        "files": {
+          "passed": 89,
+          "failed": 1,
+          "skipped": 0
+        },
+        "tests": {
+          "passed": 908,
+          "failed": 10,
+          "skipped": 0
+        }
+      },
+      "failures": [
+        {
+          "line": 33651,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > batches deferred comment wakes and forwards the ordered batch to the next run",
+          "stack": [
+            "2026-09-05T20:48:52.6256715Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6258271Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6496998Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:514:7"
+          ]
+        },
+        {
+          "line": 33664,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes with their comments after the active run is cancelled",
+          "stack": [
+            "2026-09-05T20:48:52.6503848Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6505088Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6517421Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:716:7"
+          ]
+        },
+        {
+          "line": 33677,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes after the active run closes the issue",
+          "stack": [
+            "2026-09-05T20:48:52.6522585Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6523984Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6530165Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:932:7"
+          ]
+        },
+        {
+          "line": 33690,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake came from another agent",
+          "stack": [
+            "2026-09-05T20:48:52.6537306Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6538515Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6545520Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:1142:7"
+          ]
+        },
+        {
+          "line": 33703,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake is self-authored by the closing run",
+          "stack": [
+            "2026-09-05T20:48:52.6551805Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6553221Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6559837Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:1328:7"
+          ]
+        },
+        {
+          "line": 33716,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > still reopens a finished issue when a deferred batch mixes self-authored and human comments",
+          "stack": [
+            "2026-09-05T20:48:52.6565926Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6567118Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6574118Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:1519:7"
+          ]
+        },
+        {
+          "line": 33729,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > queues exactly one follow-up run when an issue-bound run exits without a comment",
+          "stack": [
+            "2026-09-05T20:48:52.6577834Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6578542Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6585219Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:1636:7"
+          ]
+        },
+        {
+          "line": 33742,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > defers mentioned-agent wakes while another agent is actively executing the same issue",
+          "stack": [
+            "2026-09-05T20:48:52.6589939Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6590657Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6595087Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:1812:7"
+          ]
+        },
+        {
+          "line": 33755,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not mark a direct mentioned-agent run as the issue execution owner",
+          "stack": [
+            "2026-09-05T20:48:52.6599064Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6600359Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6606742Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:2031:7"
+          ]
+        },
+        {
+          "line": 33768,
+          "test": "@paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > treats the automatic run summary as fallback-only when the run already posted a comment",
+          "stack": [
+            "2026-09-05T20:48:52.6610049Z Error: Timed out waiting for condition",
+            "2026-09-05T20:48:52.6610738Z  \u276f waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9",
+            "2026-09-05T20:48:52.6615028Z  \u276f src/__tests__/heartbeat-comment-wake-batching.test.ts:2145:7"
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 101372083292,
+      "log_sha256": "02a91ea421f91b159fc515b09678ca163358e303a785199dc78c3102a7a33944",
+      "log_bytes": 133280,
+      "log_lines": 1188,
+      "counts": {
+        "files": {
+          "passed": 21,
+          "failed": 1,
+          "skipped": 0
+        },
+        "tests": {
+          "passed": 292,
+          "failed": 1,
+          "skipped": 0
+        }
+      },
+      "failures": [
+        {
+          "line": 1144,
+          "test": "@paperclipai/server  src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > redacts quarantined low-trust output from higher-trust wake and continuation contexts",
+          "stack": [
+            "2026-09-05T20:40:55.8322108Z Error: Timed out waiting for condition",
+            "2026-09-05T20:40:55.8322826Z  \u276f waitFor src/__tests__/low-trust-red-team-routes.test.ts:72:9",
+            "2026-09-05T20:40:55.8495968Z  \u276f src/__tests__/low-trust-red-team-routes.test.ts:1489:7"
+          ]
+        }
+      ]
+    }
+  ],
+  "cause": "All 11 CI failures wait for an agent payload from controlled in-process WebSocket gateways. The real stock execution guard introduced in a21 deliberately denies unverified dispatch after config.get, so those unchanged transport fixtures never receive agent requests.",
+  "classification": "Test fixture compatibility regression caused by the intentional fail-closed guard. Not attributed to root permissions or timing/flakiness.",
+  "source_evidence": {
+    "heartbeat_original_wait_lines": [
+      514,
+      716,
+      932,
+      1142,
+      1328,
+      1519,
+      1636,
+      1812,
+      2031,
+      2145
+    ],
+    "low_trust_original_wait_line": 1489,
+    "guard": "packages/adapters/openclaw-gateway/src/server/isolation.ts validateOpenClawExecutionIsolation",
+    "unrelated_changes": "The import inventory branch is selected only by view=import; Rust changes are outside these WebSocket TypeScript fixtures."
+  },
+  "fix": "Only the two test files mock execution authorization, gated by per-fixture random IDs registered for the running gateway lifetime and exact OpenClaw agent ID. Real request and configuration validators still run; all other snapshots delegate to the real denying gate. Four added controls prove scope/revocation and model/sandbox denial.",
+  "validation": {
+    "command": [
+      "runuser",
+      "-u",
+      "claw360",
+      "--",
+      "pnpm",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "--configLoader",
+      "runner",
+      "--cache=false",
+      "src/__tests__/heartbeat-comment-wake-batching.test.ts",
+      "src/__tests__/low-trust-red-team-routes.test.ts",
+      "--reporter",
+      "verbose"
+    ],
+    "cwd": "/root/work/paperclip-portal360-reconcile-20260902/server",
+    "uid": 10001,
+    "seconds": 86.028,
+    "exit": 0,
+    "log": "a21-fixture-regression-tests.log",
+    "head": "a21ac20a31cc3f69c38b47699bf3eade4d1d04da",
+    "tests": {
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0,
+      "new_mock_boundary_controls": 4,
+      "existing_tests": 23,
+      "previously_failing_cases": 11
+    },
+    "raw_log": {
+      "path": "/root/work/paperclip-portal360-reconcile-20260902/doc/evidence/test-environment-20260905/a21-fixture-regression-tests.raw.log",
+      "bytes": 46830,
+      "sha256": "52520e3ca954cf9953e022630ccb9f2351009cde67c8b9a0f19e6b2fa56a6350",
+      "include_in_git": false
+    },
+    "warning_limit": "Full successful log retains nonterminal synthetic Process adapter errors and asynchronous DB teardown warnings. Vitest reported no failed or skipped tests.",
+    "source_sha256": {
+      "server/src/__tests__/heartbeat-comment-wake-batching.test.ts": "3999bfb68f0626777eaf64f784007357ed1abf47044f91bc748f7b17f116158e",
+      "server/src/__tests__/low-trust-red-team-routes.test.ts": "6eaf4c5a0d35b045f3aa172d59369cb3c433f0422de5d41b2fb207d08578cffd"
+    }
+  },
+  "review": "Independent fixture review pending; source frozen for coordinator.",
+  "limits": "The two failed CI jobs and local targeted rerun are documented; no claim that the whole CI run passed. The original 11 failures are not dismissed as environmental.",
+  "typecheck": {
+    "command": [
+      "pnpm",
+      "--filter",
+      "@paperclipai/server",
+      "typecheck"
+    ],
+    "path_prefix": "/root/.cargo/bin",
+    "exit": 0,
+    "seconds": 30.591,
+    "log": "a21-fixture-typecheck.log",
+    "initial_attempt": "Without cargo in SSH PATH, prepare:runner-vendor failed before tsc; retry explicitly supplies installed cargo path."
+  }
+}

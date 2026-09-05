@@ -1,0 +1,46 @@
+{
+  "command": [
+    "runuser",
+    "-u",
+    "claw360",
+    "--",
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "--config",
+    "vitest.config.ts",
+    "--configLoader",
+    "runner",
+    "--cache=false",
+    "src/__tests__/heartbeat-comment-wake-batching.test.ts",
+    "src/__tests__/low-trust-red-team-routes.test.ts",
+    "--reporter",
+    "verbose"
+  ],
+  "cwd": "/root/work/paperclip-portal360-reconcile-20260902/server",
+  "uid": 10001,
+  "seconds": 86.028,
+  "exit": 0,
+  "log": "a21-fixture-regression-tests.log",
+  "head": "a21ac20a31cc3f69c38b47699bf3eade4d1d04da",
+  "tests": {
+    "passed": 27,
+    "failed": 0,
+    "skipped": 0,
+    "new_mock_boundary_controls": 4,
+    "existing_tests": 23,
+    "previously_failing_cases": 11
+  },
+  "raw_log": {
+    "path": "/root/work/paperclip-portal360-reconcile-20260902/doc/evidence/test-environment-20260905/a21-fixture-regression-tests.raw.log",
+    "bytes": 46830,
+    "sha256": "52520e3ca954cf9953e022630ccb9f2351009cde67c8b9a0f19e6b2fa56a6350",
+    "include_in_git": false
+  },
+  "warning_limit": "Full successful log retains nonterminal synthetic Process adapter errors and asynchronous DB teardown warnings. Vitest reported no failed or skipped tests.",
+  "source_sha256": {
+    "server/src/__tests__/heartbeat-comment-wake-batching.test.ts": "3999bfb68f0626777eaf64f784007357ed1abf47044f91bc748f7b17f116158e",
+    "server/src/__tests__/low-trust-red-team-routes.test.ts": "6eaf4c5a0d35b045f3aa172d59369cb3c433f0422de5d41b2fb207d08578cffd"
+  }
+}

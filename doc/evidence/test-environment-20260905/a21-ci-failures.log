@@ -1,0 +1,181 @@
+JOB 101372083281
+33651: 2026-09-05T20:48:52.6249106Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > batches deferred comment wakes and forwards the ordered batch to the next run
+33652: 2026-09-05T20:48:52.6256715Z Error: Timed out waiting for condition
+33653: 2026-09-05T20:48:52.6258271Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33654: 2026-09-05T20:48:52.6491183Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33655: 2026-09-05T20:48:52.6492314Z      39|   }
+33656: 2026-09-05T20:48:52.6493684Z      40|   throw new Error("Timed out waiting for condition");
+33657: 2026-09-05T20:48:52.6494745Z        |         ^
+33658: 2026-09-05T20:48:52.6495410Z      41| }
+33659: 2026-09-05T20:48:52.6495932Z      42|
+33660: 2026-09-05T20:48:52.6496998Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:514:7
+33661: 2026-09-05T20:48:52.6498048Z
+33662: 2026-09-05T20:48:52.6498722Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+33664: 2026-09-05T20:48:52.6501463Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes with their comments after the active run is cancelled
+33665: 2026-09-05T20:48:52.6503848Z Error: Timed out waiting for condition
+33666: 2026-09-05T20:48:52.6505088Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33667: 2026-09-05T20:48:52.6512470Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33668: 2026-09-05T20:48:52.6513731Z      39|   }
+33669: 2026-09-05T20:48:52.6514771Z      40|   throw new Error("Timed out waiting for condition");
+33670: 2026-09-05T20:48:52.6515744Z        |         ^
+33671: 2026-09-05T20:48:52.6516229Z      41| }
+33672: 2026-09-05T20:48:52.6516639Z      42|
+33673: 2026-09-05T20:48:52.6517421Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:716:7
+33674: 2026-09-05T20:48:52.6517799Z
+33675: 2026-09-05T20:48:52.6518052Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+33677: 2026-09-05T20:48:52.6520563Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > promotes deferred comment wakes after the active run closes the issue
+33678: 2026-09-05T20:48:52.6522585Z Error: Timed out waiting for condition
+33679: 2026-09-05T20:48:52.6523984Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33680: 2026-09-05T20:48:52.6524983Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33681: 2026-09-05T20:48:52.6525928Z      39|   }
+33682: 2026-09-05T20:48:52.6527162Z      40|   throw new Error("Timed out waiting for condition");
+33683: 2026-09-05T20:48:52.6528125Z        |         ^
+33684: 2026-09-05T20:48:52.6528728Z      41| }
+33685: 2026-09-05T20:48:52.6529219Z      42|
+33686: 2026-09-05T20:48:52.6530165Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:932:7
+33687: 2026-09-05T20:48:52.6530852Z
+33688: 2026-09-05T20:48:52.6531273Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+33690: 2026-09-05T20:48:52.6535148Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake came from another agent
+33691: 2026-09-05T20:48:52.6537306Z Error: Timed out waiting for condition
+33692: 2026-09-05T20:48:52.6538515Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33693: 2026-09-05T20:48:52.6540290Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33694: 2026-09-05T20:48:52.6541385Z      39|   }
+33695: 2026-09-05T20:48:52.6542461Z      40|   throw new Error("Timed out waiting for condition");
+33696: 2026-09-05T20:48:52.6543613Z        |         ^
+33697: 2026-09-05T20:48:52.6544111Z      41| }
+33698: 2026-09-05T20:48:52.6544567Z      42|
+33699: 2026-09-05T20:48:52.6545520Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:1142:7
+33700: 2026-09-05T20:48:52.6546125Z
+33701: 2026-09-05T20:48:52.6546536Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+33703: 2026-09-05T20:48:52.6549635Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not reopen a finished issue when the deferred comment wake is self-authored by the closing run
+33704: 2026-09-05T20:48:52.6551805Z Error: Timed out waiting for condition
+33705: 2026-09-05T20:48:52.6553221Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33706: 2026-09-05T20:48:52.6554938Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33707: 2026-09-05T20:48:52.6556006Z      39|   }
+33708: 2026-09-05T20:48:52.6557018Z      40|   throw new Error("Timed out waiting for condition");
+33709: 2026-09-05T20:48:52.6557966Z        |         ^
+33710: 2026-09-05T20:48:52.6558450Z      41| }
+33711: 2026-09-05T20:48:52.6558877Z      42|
+33712: 2026-09-05T20:48:52.6559837Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:1328:7
+33713: 2026-09-05T20:48:52.6560459Z
+33714: 2026-09-05T20:48:52.6560876Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+33716: 2026-09-05T20:48:52.6563855Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > still reopens a finished issue when a deferred batch mixes self-authored and human comments
+33717: 2026-09-05T20:48:52.6565926Z Error: Timed out waiting for condition
+33718: 2026-09-05T20:48:52.6567118Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33719: 2026-09-05T20:48:52.6568846Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33720: 2026-09-05T20:48:52.6570020Z      39|   }
+33721: 2026-09-05T20:48:52.6571055Z      40|   throw new Error("Timed out waiting for condition");
+33722: 2026-09-05T20:48:52.6572204Z        |         ^
+33723: 2026-09-05T20:48:52.6572897Z      41| }
+33724: 2026-09-05T20:48:52.6573321Z      42|
+33725: 2026-09-05T20:48:52.6574118Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:1519:7
+33726: 2026-09-05T20:48:52.6574506Z
+33727: 2026-09-05T20:48:52.6574747Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+33729: 2026-09-05T20:48:52.6576160Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > queues exactly one follow-up run when an issue-bound run exits without a comment
+33730: 2026-09-05T20:48:52.6577834Z Error: Timed out waiting for condition
+33731: 2026-09-05T20:48:52.6578542Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33732: 2026-09-05T20:48:52.6580154Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33733: 2026-09-05T20:48:52.6581331Z      39|   }
+33734: 2026-09-05T20:48:52.6582450Z      40|   throw new Error("Timed out waiting for condition");
+33735: 2026-09-05T20:48:52.6583858Z        |         ^
+33736: 2026-09-05T20:48:52.6584181Z      41| }
+33737: 2026-09-05T20:48:52.6584511Z      42|
+33738: 2026-09-05T20:48:52.6585219Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:1636:7
+33739: 2026-09-05T20:48:52.6585595Z
+33740: 2026-09-05T20:48:52.6586027Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+33742: 2026-09-05T20:48:52.6588349Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > defers mentioned-agent wakes while another agent is actively executing the same issue
+33743: 2026-09-05T20:48:52.6589939Z Error: Timed out waiting for condition
+33744: 2026-09-05T20:48:52.6590657Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33745: 2026-09-05T20:48:52.6591783Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33746: 2026-09-05T20:48:52.6592556Z      39|   }
+33747: 2026-09-05T20:48:52.6593431Z      40|   throw new Error("Timed out waiting for condition");
+33748: 2026-09-05T20:48:52.6593996Z        |         ^
+33749: 2026-09-05T20:48:52.6594293Z      41| }
+33750: 2026-09-05T20:48:52.6594537Z      42|
+33751: 2026-09-05T20:48:52.6595087Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:1812:7
+33752: 2026-09-05T20:48:52.6595602Z
+33753: 2026-09-05T20:48:52.6596057Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+33755: 2026-09-05T20:48:52.6597857Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > does not mark a direct mentioned-agent run as the issue execution owner
+33756: 2026-09-05T20:48:52.6599064Z Error: Timed out waiting for condition
+33757: 2026-09-05T20:48:52.6600359Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33758: 2026-09-05T20:48:52.6602153Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33759: 2026-09-05T20:48:52.6603572Z      39|   }
+33760: 2026-09-05T20:48:52.6604744Z      40|   throw new Error("Timed out waiting for condition");
+33761: 2026-09-05T20:48:52.6605476Z        |         ^
+33762: 2026-09-05T20:48:52.6605783Z      41| }
+33763: 2026-09-05T20:48:52.6606168Z      42|
+33764: 2026-09-05T20:48:52.6606742Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:2031:7
+33765: 2026-09-05T20:48:52.6607121Z
+33766: 2026-09-05T20:48:52.6607438Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+33768: 2026-09-05T20:48:52.6608901Z  FAIL   @paperclipai/server  src/__tests__/heartbeat-comment-wake-batching.test.ts > heartbeat comment wake batching > treats the automatic run summary as fallback-only when the run already posted a comment
+33769: 2026-09-05T20:48:52.6610049Z Error: Timed out waiting for condition
+33770: 2026-09-05T20:48:52.6610738Z  ❯ waitFor src/__tests__/heartbeat-comment-wake-batching.test.ts:40:9
+33771: 2026-09-05T20:48:52.6611704Z      38|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+33772: 2026-09-05T20:48:52.6612330Z      39|   }
+33773: 2026-09-05T20:48:52.6613340Z      40|   throw new Error("Timed out waiting for condition");
+33774: 2026-09-05T20:48:52.6613941Z        |         ^
+33775: 2026-09-05T20:48:52.6614238Z      41| }
+33776: 2026-09-05T20:48:52.6614483Z      42|
+33777: 2026-09-05T20:48:52.6615028Z  ❯ src/__tests__/heartbeat-comment-wake-batching.test.ts:2145:7
+33778: 2026-09-05T20:48:52.6615385Z
+33779: 2026-09-05T20:48:52.6615619Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+33782: 2026-09-05T20:48:52.6616313Z  Test Files  1 failed | 89 passed (90)
+33783: 2026-09-05T20:48:52.6617234Z       Tests  10 failed | 908 passed (918)
+
+JOB 101372083292
+1144: 2026-09-05T20:40:55.8320133Z  FAIL   @paperclipai/server  src/__tests__/low-trust-red-team-routes.test.ts > low-trust red-team HTTP route regression suite > redacts quarantined low-trust output from higher-trust wake and continuation contexts
+1145: 2026-09-05T20:40:55.8322108Z Error: Timed out waiting for condition
+1146: 2026-09-05T20:40:55.8322826Z  ❯ waitFor src/__tests__/low-trust-red-team-routes.test.ts:72:9
+1147: 2026-09-05T20:40:55.8490510Z      70|     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+1148: 2026-09-05T20:40:55.8491785Z      71|   }
+1149: 2026-09-05T20:40:55.8492990Z      72|   throw new Error("Timed out waiting for condition");
+1150: 2026-09-05T20:40:55.8494068Z        |         ^
+1151: 2026-09-05T20:40:55.8494608Z      73| }
+1152: 2026-09-05T20:40:55.8495041Z      74|
+1153: 2026-09-05T20:40:55.8495968Z  ❯ src/__tests__/low-trust-red-team-routes.test.ts:1489:7
+1154: 2026-09-05T20:40:55.8496564Z
+1155: 2026-09-05T20:40:55.8497245Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+323: 2026-09-05T20:37:18.3548083Z  Test Files  1 passed (1)
+324: 2026-09-05T20:37:18.3549573Z       Tests  10 passed (10)
+362: 2026-09-05T20:37:26.3215635Z  Test Files  1 passed (1)
+363: 2026-09-05T20:37:26.3216531Z       Tests  14 passed (14)
+379: 2026-09-05T20:37:37.6353058Z  Test Files  1 passed (1)
+380: 2026-09-05T20:37:37.6354082Z       Tests  20 passed (20)
+394: 2026-09-05T20:37:50.3706760Z  Test Files  1 passed (1)
+395: 2026-09-05T20:37:50.3707986Z       Tests  4 passed (4)
+412: 2026-09-05T20:37:59.0900386Z  Test Files  1 passed (1)
+413: 2026-09-05T20:37:59.0901194Z       Tests  13 passed (13)
+428: 2026-09-05T20:38:02.4827413Z  Test Files  1 passed (1)
+429: 2026-09-05T20:38:02.4828828Z       Tests  19 passed (19)
+443: 2026-09-05T20:38:03.5856135Z  Test Files  1 passed (1)
+444: 2026-09-05T20:38:03.5857416Z       Tests  2 passed (2)
+458: 2026-09-05T20:38:08.7089192Z  Test Files  1 passed (1)
+459: 2026-09-05T20:38:08.7090407Z       Tests  11 passed (11)
+473: 2026-09-05T20:38:22.1593591Z  Test Files  1 passed (1)
+474: 2026-09-05T20:38:22.1594800Z       Tests  15 passed (15)
+488: 2026-09-05T20:38:29.5045659Z  Test Files  1 passed (1)
+489: 2026-09-05T20:38:29.5047013Z       Tests  17 passed (17)
+503: 2026-09-05T20:38:37.0086478Z  Test Files  1 passed (1)
+504: 2026-09-05T20:38:37.0087817Z       Tests  6 passed (6)
+551: 2026-09-05T20:38:46.4247080Z  Test Files  1 passed (1)
+552: 2026-09-05T20:38:46.4248332Z       Tests  7 passed (7)
+567: 2026-09-05T20:38:55.1657541Z  Test Files  1 passed (1)
+568: 2026-09-05T20:38:55.1658779Z       Tests  4 passed (4)
+582: 2026-09-05T20:39:00.3378944Z  Test Files  1 passed (1)
+583: 2026-09-05T20:39:00.3379677Z       Tests  3 passed (3)
+600: 2026-09-05T20:39:10.0257834Z  Test Files  1 passed (1)
+601: 2026-09-05T20:39:10.0258955Z       Tests  3 passed (3)
+647: 2026-09-05T20:39:17.0329222Z  Test Files  1 passed (1)
+648: 2026-09-05T20:39:17.0330375Z       Tests  7 passed (7)
+707: 2026-09-05T20:39:24.1934863Z  Test Files  1 passed (1)
+708: 2026-09-05T20:39:24.1936426Z       Tests  96 passed (96)
+770: 2026-09-05T20:39:34.1088511Z  Test Files  1 passed (1)
+771: 2026-09-05T20:39:34.1089565Z       Tests  8 passed (8)
+787: 2026-09-05T20:39:46.6600649Z  Test Files  1 passed (1)
+788: 2026-09-05T20:39:46.6601981Z       Tests  3 passed (3)
+802: 2026-09-05T20:39:59.8810164Z  Test Files  1 passed (1)
+803: 2026-09-05T20:39:59.8811648Z       Tests  11 passed (11)
+818: 2026-09-05T20:40:03.0762950Z  Test Files  1 passed (1)
+819: 2026-09-05T20:40:03.0764011Z       Tests  9 passed (9)
+1158: 2026-09-05T20:40:55.8520413Z  Test Files  1 failed (1)
+1159: 2026-09-05T20:40:55.8521707Z       Tests  1 failed | 10 passed (11)
