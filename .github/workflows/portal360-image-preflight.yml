@@ -25,7 +25,6 @@ jobs:
     timeout-minutes: 45
     env:
       PAPERCLIP_PREFLIGHT_COMMIT: ${{ github.event.pull_request.head.sha }}
-      PAPERCLIP_PREFLIGHT_OUTPUT: ${{ runner.temp }}/paperclip-image-preflight
     steps:
       - name: Checkout exact candidate head without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -33,6 +32,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           fetch-depth: 1
+
+      - name: Initialize the isolated output path
+        run: |
+          printf '%s\n' "PAPERCLIP_PREFLIGHT_OUTPUT=$RUNNER_TEMP/paperclip-image-preflight" >> "$GITHUB_ENV"
 
       - name: Verify pure environment guards
         run: python3 -I -B scripts/portal360-image-preflight/test_preflight_config.py
